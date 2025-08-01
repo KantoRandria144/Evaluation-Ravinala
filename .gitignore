@@ -1,0 +1,64 @@
+# --- Fichiers communs à ignorer ---
+*.log
+*.tmp
+*.bak
+*.swp
+*.suo
+*.user
+*.DS_Store
+*.zip
+Thumbs.db
+ehthumbs.db
+~$*.xlsx
+
+# --- Node (React FRONTEND) ---
+/front-evaluation/vite/node_modules/
+/front-evaluation/vite/build/
+/front-evaluation/vite/dist/
+/front-evaluation/vite/.env
+/front-evaluation/vite/.next/
+/front-evaluation/vite/.turbo/
+/front-evaluation/vite/.cache/
+/front-evaluation/vite/.eslintcache
+
+# --- Visual Studio & .NET (BACKEND) ---
+
+
+/UserService/appsettings.json
+/UserService/bin
+/UserService/Migrations
+/UserService/obj
+/UserService/obj
+/UserService/.vs/
+
+/EvaluationService/appsettings.json
+/EvaluationService/bin
+/EvaluationService/Migrations
+/EvaluationService/obj
+/EvaluationService/.vs/
+
+
+/CommonModels/appsettings.json
+/CommonModels/bin
+/CommonModels/bin/Debug
+/CommonModels/Migrations
+/CommonModels/obj
+/CommonModels/.vs/
+
+/ExcelTransformation/appsettings.json
+/ExcelTransformation/bin
+/ExcelTransformation/Migrations
+/ExcelTransformation/obj
+/ExcelTransformation/.vs/
+
+
+# --- Ignorer les fichiers de publication ---
+/FRONTEND/rh-front/.firebase/
+
+# --- Ignorer les fichiers de dépendances lock ---
+/front-evaluation/yarn.lock
+/front-evaluation/package-lock.json
+/front-evaluation/vite/package-lock.json
+/front-evaluation/vite/src/axiosConfig.js
+
+*.sln

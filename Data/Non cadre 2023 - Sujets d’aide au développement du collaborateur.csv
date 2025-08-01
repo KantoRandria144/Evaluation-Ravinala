@@ -1,0 +1,3 @@
+Name,TemplateId,IsActive,AllowedUserLevel
+Commentaires du collaborateur,2,0,0
+Commentaire du manager,2,0,1
