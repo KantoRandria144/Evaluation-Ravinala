@@ -12,19 +12,19 @@ namespace EvaluationService.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class NonCadreResetController : ControllerBase
+    public class CadreResetController : ControllerBase
     {
         private readonly AppdbContext _context;
-        private readonly ILogger<NonCadreResetController> _logger;
+        private readonly ILogger<CadreResetController> _logger;
 
-        public NonCadreResetController(AppdbContext context, ILogger<NonCadreResetController> logger)
+        public CadreResetController(AppdbContext context, ILogger<CadreResetController> logger)
         {
             _context = context;
             _logger = logger;
         }
 
-        [HttpPost("reset-non-cadre")]
-        public async Task<IActionResult> ResetNonCadre([FromBody] ResetNonCadreRequest request)
+        [HttpPost("reset-cadre")]
+        public async Task<IActionResult> ResetCadre([FromBody] ResetCadreRequest request)
         {
             if (request == null)
             {
@@ -34,9 +34,7 @@ namespace EvaluationService.Controllers
                 });
             }
 
-            if (!request.Evaluation && !request.Fixation && !request.MiParcoursIndicators &&
-                !request.MiParcoursCompetence && !request.Finale && !request.Help &&
-                !request.UserHelpContent)
+            if (!request.Evaluation && !request.Fixation && !request.MiParcours && !request.Finale)
             {
                 return BadRequest(new ControllerErrorResponse
                 {
@@ -56,13 +54,13 @@ namespace EvaluationService.Controllers
             try
             {
                 var evaluation = await _context.Evaluations
-                    .FirstOrDefaultAsync(e => e.EvalAnnee == request.Annee && e.Type == "NonCadre");
+                    .FirstOrDefaultAsync(e => e.EvalAnnee == request.Annee && e.Type == "Cadre");
 
                 if (evaluation == null)
                 {
                     return NotFound(new ControllerErrorResponse
                     {
-                        ErrorMessage = $"Aucune évaluation NonCadre trouvée pour l'année {request.Annee}."
+                        ErrorMessage = $"Aucune évaluation Cadre trouvée pour l'année {request.Annee}."
                     });
                 }
 
@@ -81,12 +79,7 @@ namespace EvaluationService.Controllers
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryCFis");
                     }
 
-                    if (request.MiParcoursCompetence)
-                    {
-                        await DeleteDependentRecordsAsync(userEvalIds, "HistoryCMps");
-                    }
-
-                    if (request.MiParcoursIndicators)
+                    if (request.MiParcours)
                     {
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryUserIndicatorMPs");
                     }
@@ -94,11 +87,6 @@ namespace EvaluationService.Controllers
                     if (request.Fixation)
                     {
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryCFos");
-                    }
-
-                    if (request.UserHelpContent)
-                    {
-                        await DeleteDependentRecordsAsync(userEvalIds, "UserHelpContents");
                     }
 
                     // Delete UserObjectives (critical to avoid FK_UserObjectives_UserEvaluations_UserEvalId)
@@ -125,15 +113,6 @@ namespace EvaluationService.Controllers
                     }
                 }
 
-                // Delete Help records if requested
-                if (request.Help && evaluation.TemplateId != null)
-                {
-                    var deletedHelpCount = await _context.Helps
-                        .Where(h => h.TemplateId == evaluation.TemplateId)
-                        .ExecuteDeleteAsync();
-                    _logger.LogInformation($"Deleted {deletedHelpCount} Help records for year {request.Annee}.");
-                }
-
                 // Delete the main Evaluation record last if requested
                 if (request.Evaluation)
                 {
@@ -151,7 +130,7 @@ namespace EvaluationService.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, $"Error resetting non-cadre data for year {request.Annee}.");
+                _logger.LogError(ex, $"Error resetting cadre data for year {request.Annee}.");
                 return StatusCode(500, new ControllerErrorResponse
                 {
                     ErrorMessage = "Une erreur est survenue lors de la réinitialisation.",
@@ -164,7 +143,7 @@ namespace EvaluationService.Controllers
         public async Task<IActionResult> GetResetStatus([FromQuery] int annee)
         {
             var evaluation = await _context.Evaluations
-                .FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "NonCadre");
+                .FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "Cadre");
 
             if (evaluation == null)
             {
@@ -172,11 +151,8 @@ namespace EvaluationService.Controllers
                 {
                     Evaluation = false,
                     Fixation = false,
-                    MiParcoursIndicators = false,
-                    MiParcoursCompetence = false,
-                    Finale = false,
-                    Help = false,
-                    UserHelpContent = false
+                    MiParcours = false,
+                    Finale = false
                 });
             }
 
@@ -188,30 +164,18 @@ namespace EvaluationService.Controllers
             bool hasFixation = userEvalIds.Any() && await _context.HistoryCFos
                 .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
 
-            bool hasMiParcoursIndicators = userEvalIds.Any() && await _context.HistoryUserIndicatorMPs
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasMiParcoursCompetence = userEvalIds.Any() && await _context.HistoryCMps
+            bool hasMiParcours = userEvalIds.Any() && await _context.HistoryUserIndicatorMPs
                 .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
 
             bool hasFinale = userEvalIds.Any() && await _context.HistoryCFis
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasHelp = evaluation.TemplateId != null && await _context.Helps
-                .AnyAsync(h => h.TemplateId == evaluation.TemplateId);
-
-            bool hasUserHelpContent = userEvalIds.Any() && await _context.UserHelpContents
                 .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
 
             return Ok(new
             {
                 Evaluation = true,
                 Fixation = hasFixation,
-                MiParcoursIndicators = hasMiParcoursIndicators,
-                MiParcoursCompetence = hasMiParcoursCompetence,
-                Finale = hasFinale,
-                Help = hasHelp,
-                UserHelpContent = hasUserHelpContent
+                MiParcours = hasMiParcours,
+                Finale = hasFinale
             });
         }
 
@@ -233,15 +197,13 @@ namespace EvaluationService.Controllers
         }
     }
 
-    public class ResetNonCadreRequest
+    public class ResetCadreRequest
     {
         public int Annee { get; set; }
         public bool Evaluation { get; set; }
         public bool Fixation { get; set; }
-        public bool MiParcoursIndicators { get; set; }
-        public bool MiParcoursCompetence { get; set; }
+        public bool MiParcours { get; set; }
         public bool Finale { get; set; }
-        public bool Help { get; set; }
-        public bool UserHelpContent { get; set; }
     }
+
 }
