@@ -1118,15 +1118,6 @@ namespace EvaluationService.Controllers
         }
     }
 
-    // Classe de réponse d'erreur
-    public class ControllerErrorResponse
-    {
-        public string? FileName { get; set; }
-        public int? LineNumber { get; set; }
-        public string? ErrorMessage { get; set; }
-        public string? Details { get; set; }
-    }
-
     // Exception personnalisée pour les erreurs de parsing CSV
     public class CsvParsingException : Exception
     {

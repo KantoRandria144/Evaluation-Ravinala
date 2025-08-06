@@ -34,6 +34,8 @@ const AssignationAll = Loadable(lazy(() => import('views/admin/utilisateur/Assig
 
 const ImportCSV = Loadable(lazy(() => import('views/admin/import/index')));
 
+const RenitialisationCSV = Loadable(lazy(() => import('views/admin/renitialiser/index')));
+
 const DashboardAdmin = Loadable(lazy(() => import('views/admin/dashboard/index')));
 
 
@@ -242,6 +244,15 @@ const MainRoutes = {
         {
           path: 'importCSV',
           element: <ImportCSV />
+        }
+      ]
+    },
+    {
+      path: 'renitialiser',
+      children: [
+        {
+          path: 'renitialisationCSV',
+          element: <RenitialisationCSV />
         }
       ]
     },

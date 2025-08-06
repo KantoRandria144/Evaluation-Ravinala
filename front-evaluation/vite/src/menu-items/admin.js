@@ -1,9 +1,9 @@
 // assets
-import { IconKey, IconUsers, IconFileImport, IconDashboard } from '@tabler/icons-react';
+import { IconKey, IconUsers, IconFileImport, IconDashboard,IconRotateClockwise } from '@tabler/icons-react';
 
 // constant
 const icons = {
-  IconKey, IconUsers, IconFileImport, IconDashboard
+  IconKey, IconUsers, IconFileImport, IconDashboard,IconRotateClockwise
 };
 
 // ==============================|| EXTRA PAGES MENU ITEMS ||============================== //
@@ -102,7 +102,17 @@ const admin = {
       requiredHabilitation: 27,
       icon: icons.IconFileImport,
       breadcrumbs: false
+    },
+    {
+      id: 'renitialisationCSV',
+      title: 'Reinitialisation',
+      type: 'item',
+      url: '/renitialiser/renitialisationCSV',
+      requiredHabilitation: 27,
+      icon: icons.IconRotateClockwise, // plus explicite pour "reset"
+      breadcrumbs: false
     }
+
 
   ]
 };
