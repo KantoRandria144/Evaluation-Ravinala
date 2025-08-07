@@ -63,21 +63,43 @@ namespace EvaluationService.Controllers
             return Ok(new { UnreadCount = unreadCount });
         }
 
+        // [HttpGet("notifications/stream")]
+        // public async Task StreamNotifications(string userId)
+        // {
+        //     Response.ContentType = "text/event-stream";
+
+        //     using var writer = new StreamWriter(Response.Body);
+        //     NotificationService.RegisterClient(userId, writer);
+
+        //     while (!HttpContext.RequestAborted.IsCancellationRequested)
+        //     {
+        //         await Task.Delay(100); // Maintenir la connexion ouverte
+        //     }
+
+        //     NotificationService.UnregisterClient(userId);
+        // } 
+
         [HttpGet("notifications/stream")]
         public async Task StreamNotifications(string userId)
         {
             Response.ContentType = "text/event-stream";
 
-            using var writer = new StreamWriter(Response.Body);
+            await using var writer = new StreamWriter(Response.Body, leaveOpen: true);
             NotificationService.RegisterClient(userId, writer);
 
-            while (!HttpContext.RequestAborted.IsCancellationRequested)
+            try
             {
-                await Task.Delay(100); // Maintenir la connexion ouverte
+                while (!HttpContext.RequestAborted.IsCancellationRequested)
+                {
+                    await Task.Delay(100); // Maintenir la connexion ouverte
+                }
             }
-
-            NotificationService.UnregisterClient(userId);
-        }   
+            finally
+            {
+                NotificationService.UnregisterClient(userId);
+            }
+        }
+        
 
         [HttpGet("validationStatus")]
         public async Task<IActionResult> GetValidationStatus(string userId, int evalId)

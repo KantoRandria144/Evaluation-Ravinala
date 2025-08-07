@@ -240,6 +240,15 @@ const ResultSummary = () => {
                           <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.name}</TableCell>
                           <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.department}</TableCell>
                           <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.score}</TableCell>
+                          <TableCell>
+                                  <ul>
+                                    {user.objectives.map((obj, i) => (
+                                      <li key={i}>
+                                        {obj.description} ({obj.weighting}%) - Résultat: {obj.result}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
