@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace EvaluationService.Controllers
 {
+    // Définit la route de base pour ce contrôleur d'API
     [Route("api/[controller]")]
     [ApiController]
     public class NonCadreResetController : ControllerBase
@@ -17,15 +18,18 @@ namespace EvaluationService.Controllers
         private readonly AppdbContext _context;
         private readonly ILogger<NonCadreResetController> _logger;
 
+        // Injection des dépendances : contexte BDD et logger
         public NonCadreResetController(AppdbContext context, ILogger<NonCadreResetController> logger)
         {
             _context = context;
             _logger = logger;
         }
 
+        // Endpoint POST pour réinitialiser les données NonCadre selon les options du client
         [HttpPost("reset-non-cadre")]
         public async Task<IActionResult> ResetNonCadre([FromBody] ResetNonCadreRequest request)
         {
+            // Vérifie la validité de la requête
             if (request == null)
             {
                 return BadRequest(new ControllerErrorResponse
@@ -34,6 +38,7 @@ namespace EvaluationService.Controllers
                 });
             }
 
+            // Vérifie qu'au moins une case est cochée
             if (!request.Evaluation && !request.Fixation && !request.MiParcoursIndicators &&
                 !request.MiParcoursCompetence && !request.Finale && !request.Help &&
                 !request.UserHelpContent)
@@ -44,6 +49,7 @@ namespace EvaluationService.Controllers
                 });
             }
 
+            // Vérifie la validité de l'année
             if (request.Annee < 1900 || request.Annee > 2100)
             {
                 return BadRequest(new ControllerErrorResponse
@@ -52,9 +58,11 @@ namespace EvaluationService.Controllers
                 });
             }
 
+            // Démarre une transaction pour garantir la cohérence des suppressions
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                // Recherche l'évaluation NonCadre pour l'année donnée
                 var evaluation = await _context.Evaluations
                     .FirstOrDefaultAsync(e => e.EvalAnnee == request.Annee && e.Type == "NonCadre");
 
@@ -66,6 +74,7 @@ namespace EvaluationService.Controllers
                     });
                 }
 
+                // Récupère les IDs des UserEvaluations liés à cette évaluation
                 var userEvalIds = await _context.UserEvaluations
                     .Where(ue => ue.EvalId == evaluation.EvalId)
                     .Select(ue => ue.UserEvalId)
@@ -75,7 +84,7 @@ namespace EvaluationService.Controllers
 
                 if (userEvalIds.Any())
                 {
-                    // Delete dependent records in the correct order to avoid FK violations
+                    // Suppression des tables dépendantes dans l'ordre pour éviter les violations de clés étrangères
                     if (request.Finale)
                     {
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryCFis");
@@ -101,12 +110,12 @@ namespace EvaluationService.Controllers
                         await DeleteDependentRecordsAsync(userEvalIds, "UserHelpContents");
                     }
 
-                    // Delete UserObjectives (critical to avoid FK_UserObjectives_UserEvaluations_UserEvalId)
+                    // Suppression critique pour éviter les violations de FK
                     _logger.LogInformation($"Attempting to delete UserObjectives for year {request.Annee}.");
                     await DeleteDependentRecordsAsync(userEvalIds, "UserObjectives");
 
-                    // Delete other dependent tables if they exist
-                    var dependentTables = new[] { "UserIndicators", "UserCompetencies" }; // Add more as needed
+                    // Suppression d'autres tables dépendantes si elles existent
+                    var dependentTables = new[] { "UserIndicators", "UserCompetencies" }; // Ajouter d'autres tables si besoin
                     foreach (var tableName in dependentTables)
                     {
                         if (_context.Model.GetEntityTypes().Any(e => e.ClrType.Name == tableName))
@@ -115,7 +124,7 @@ namespace EvaluationService.Controllers
                         }
                     }
 
-                    // Delete UserEvaluations if requested
+                    // Suppression des UserEvaluations si demandé
                     if (request.Evaluation)
                     {
                         var deletedUserEvalCount = await _context.UserEvaluations
@@ -125,7 +134,7 @@ namespace EvaluationService.Controllers
                     }
                 }
 
-                // Delete Help records if requested
+                // Suppression des aides si demandé
                 if (request.Help && evaluation.TemplateId != null)
                 {
                     var deletedHelpCount = await _context.Helps
@@ -134,7 +143,7 @@ namespace EvaluationService.Controllers
                     _logger.LogInformation($"Deleted {deletedHelpCount} Help records for year {request.Annee}.");
                 }
 
-                // Delete the main Evaluation record last if requested
+                // Suppression de l'évaluation principale si demandé
                 if (request.Evaluation)
                 {
                     var deletedEvalCount = await _context.Evaluations
@@ -160,14 +169,16 @@ namespace EvaluationService.Controllers
             }
         }
 
+        // Endpoint GET pour vérifier l'état de présence des données pour une année donnée
         [HttpGet("reset-status")]
         public async Task<IActionResult> GetResetStatus([FromQuery] int annee)
         {
-            var evaluation = await _context.Evaluations
-                .FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "NonCadre");
+            _logger.LogInformation("Checking reset status for year {Year}.", annee);
+            var evaluation = await _context.Evaluations.FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "NonCadre");
 
             if (evaluation == null)
             {
+                _logger.LogInformation("No evaluation found for year {Year}.", annee);
                 return Ok(new
                 {
                     Evaluation = false,
@@ -180,28 +191,21 @@ namespace EvaluationService.Controllers
                 });
             }
 
+            // Vérifie la présence de données dans chaque table liée
             var userEvalIds = await _context.UserEvaluations
                 .Where(ue => ue.EvalId == evaluation.EvalId)
                 .Select(ue => ue.UserEvalId)
                 .ToListAsync();
 
-            bool hasFixation = userEvalIds.Any() && await _context.HistoryCFos
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFixation = await _context.HistoryUserIndicatorFOs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasMiParcoursIndicators = await _context.HistoryUserIndicatorMPs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasMiParcoursCompetence = await _context.HistoryUserCompetenceMPs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFinale = await _context.HistoryUserindicatorFis.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasHelp = await _context.Helps.AnyAsync(h => h.TemplateId == evaluation.TemplateId);
+            bool hasUserHelpContent = await _context.UserHelpContents.AnyAsync(uhc => userEvalIds.Contains(uhc.UserEvalId));
 
-            bool hasMiParcoursIndicators = userEvalIds.Any() && await _context.HistoryUserIndicatorMPs
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasMiParcoursCompetence = userEvalIds.Any() && await _context.HistoryCMps
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasFinale = userEvalIds.Any() && await _context.HistoryCFis
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasHelp = evaluation.TemplateId != null && await _context.Helps
-                .AnyAsync(h => h.TemplateId == evaluation.TemplateId);
-
-            bool hasUserHelpContent = userEvalIds.Any() && await _context.UserHelpContents
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            _logger.LogInformation("Import status for year {Year}: Evaluation={Evaluation}, Fixation={Fixation}, MiParcoursIndicators={MiParcoursIndicators}, MiParcoursCompetence={MiParcoursCompetence}, Finale={Finale}, Help={Help}, UserHelpContent={UserHelpContent}.",
+                annee, true, hasFixation, hasMiParcoursIndicators, hasMiParcoursCompetence, hasFinale, hasHelp, hasUserHelpContent);
 
             return Ok(new
             {
@@ -215,7 +219,7 @@ namespace EvaluationService.Controllers
             });
         }
 
-        // Helper method to delete records from dependent tables
+        // Méthode utilitaire pour supprimer les enregistrements dépendants d'une table donnée
         private async Task<int> DeleteDependentRecordsAsync(List<int> userEvalIds, string tableName, string foreignKeyColumn = "UserEvalId")
         {
             try
@@ -233,6 +237,7 @@ namespace EvaluationService.Controllers
         }
     }
 
+    // Modèle de la requête pour la réinitialisation
     public class ResetNonCadreRequest
     {
         public int Annee { get; set; }

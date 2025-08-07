@@ -142,8 +142,7 @@ namespace EvaluationService.Controllers
         [HttpGet("reset-status")]
         public async Task<IActionResult> GetResetStatus([FromQuery] int annee)
         {
-            var evaluation = await _context.Evaluations
-                .FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "Cadre");
+            var evaluation = await _context.Evaluations.FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "Cadre");
 
             if (evaluation == null)
             {
@@ -161,14 +160,9 @@ namespace EvaluationService.Controllers
                 .Select(ue => ue.UserEvalId)
                 .ToListAsync();
 
-            bool hasFixation = userEvalIds.Any() && await _context.HistoryCFos
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasMiParcours = userEvalIds.Any() && await _context.HistoryUserIndicatorMPs
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-
-            bool hasFinale = userEvalIds.Any() && await _context.HistoryCFis
-                .AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFixation = await _context.HistoryCFos.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasMiParcours = await _context.HistoryCMps.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFinale = await _context.HistoryCFis.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
 
             return Ok(new
             {

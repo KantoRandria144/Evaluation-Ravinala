@@ -25,16 +25,18 @@ import {
   Checkbox,
   Menu,
   MenuItem,
-  Icon
+  Icon,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import DoneIcon from '@mui/icons-material/Done';
 import AddIcon from '@mui/icons-material/Add';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 
 // Styled components for table cells and rows
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -77,11 +79,13 @@ const Formulaire = () => {
   const [newColumnName, setNewColumnName] = useState('');
   const [inactiveColumns, setInactiveColumns] = useState([]);
   const [isEditColumnModalOpen, setIsEditColumnModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [openSnackbar, setOpenSnackbar] = useState(false);
 
   const printRef = useRef();
 
   const [canEdit, setCanEdit] = useState(false);
-  const EDIT_FORM = 10; //modifier la formulaire d'évaluation
+  const EDIT_FORM = 10; // Modifier la formulaire d'évaluation
 
   const checkPermissions = async () => {
     try {
@@ -93,8 +97,12 @@ const Formulaire = () => {
       );
       setCanEdit(editResponse.data.hasAccess);
     } catch (error) {
-      const errorData = error.response?.data;
-      setError(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : 'Erreur lors de la vérification des autorisations.');
+      setErrorMessage(
+        typeof error.response?.data === 'object'
+          ? JSON.stringify(error.response.data, null, 2)
+          : 'Erreur lors de la vérification des autorisations.'
+      );
+      setOpenSnackbar(true);
     }
   };
 
@@ -103,32 +111,33 @@ const Formulaire = () => {
   }, []);
 
   useEffect(() => {
-    {
-      const fetchCadreTemplateId = async () => {
-        try {
-          const response = await formulaireInstance.get('/Template/CadreTemplate');
-          if (response.data?.templateId) {
-            setTemplateId(response.data.templateId);
-          } else {
-            console.error('Template ID for Cadre not found in the response');
-          }
-        } catch (error) {
-          console.error('Error fetching Cadre template ID:', error);
+    const fetchCadreTemplateId = async () => {
+      try {
+        const response = await formulaireInstance.get('/Template/CadreTemplate');
+        if (response.data?.templateId) {
+          setTemplateId(response.data.templateId);
+        } else {
+          console.error('Template ID for Cadre not found in the response');
         }
-      };
-      fetchCadreTemplateId();
-    }
+      } catch (error) {
+        console.error('Error fetching Cadre template ID:', error);
+        setErrorMessage('Erreur lors de la récupération de l\'ID du modèle.');
+        setOpenSnackbar(true);
+      }
+    };
+    fetchCadreTemplateId();
   }, []);
 
   useEffect(() => {
     const fetchTemplate = async () => {
       try {
         const response = await formulaireInstance.get(`/Template/${templateId}`);
-        console.log('API Response:', response.data); // Vérifiez ce que renvoie l'API
         setFormTemplate(response.data.template);
-        setDynamicColumns(response.data.dynamicColumns); // Récupérer les dynamicColumns
+        setDynamicColumns(response.data.dynamicColumns);
       } catch (error) {
         console.error('Error fetching form template:', error);
+        setErrorMessage('Erreur lors de la récupération du modèle de formulaire.');
+        setOpenSnackbar(true);
       }
     };
     if (templateId) {
@@ -159,6 +168,8 @@ const Formulaire = () => {
       );
     } catch (error) {
       console.error('Error fetching all strategic priorities:', error);
+      setErrorMessage('Erreur lors de la récupération des priorités stratégiques.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -178,9 +189,10 @@ const Formulaire = () => {
       await formulaireInstance.put(`/Template/UpdateCadreTemplateName`, newTemplateName);
       setFormTemplate({ ...formTemplate, name: newTemplateName });
       setIsModalOpen(false);
-      setIsEditIconVisible(false);
     } catch (error) {
       console.error('Error updating template name:', error);
+      setErrorMessage('Erreur lors de la mise à jour du nom du modèle.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -190,9 +202,21 @@ const Formulaire = () => {
 
   const handleAddPriorityModalClose = () => {
     setIsAddPriorityModalOpen(false);
+    setNewPriorityName('');
+    setNewMaxObjectives(0);
   };
 
   const handleSavePriority = async () => {
+    if (newMaxObjectives > 6) {
+      setErrorMessage('Le nombre maximum d\'objectifs ne peut pas dépasser 6.');
+      setOpenSnackbar(true);
+      return;
+    }
+    if (!newPriorityName.trim()) {
+      setErrorMessage('Le nom de la priorité ne peut pas être vide.');
+      setOpenSnackbar(true);
+      return;
+    }
     try {
       await formulaireInstance.post('/Template/AddStrategicPriority', {
         name: newPriorityName,
@@ -200,23 +224,30 @@ const Formulaire = () => {
         templateId: templateId
       });
       setIsAddPriorityModalOpen(false);
-      // Refresh template data after adding a new priority
+      setNewPriorityName('');
+      setNewMaxObjectives(0);
       const response = await formulaireInstance.get(`/Template/${templateId}`);
       setFormTemplate(response.data.template);
       setDynamicColumns(response.data.dynamicColumns);
     } catch (error) {
       console.error('Error adding strategic priority:', error);
+      setErrorMessage('Erreur lors de l\'ajout de la priorité stratégique.');
+      setOpenSnackbar(true);
     }
   };
 
   const handleEditPrioritiesClick = async () => {
-    await fetchAllPriorities(); // Charger les priorités stratégiques
-    setIsEditPrioritiesModalOpen(true); // Ouvrir une fois prêt
+    await fetchAllPriorities();
+    setIsEditPrioritiesModalOpen(true);
   };
 
   const handlePriorityChange = (id, field, value) => {
     setEditedPriorities((prevPriorities) =>
-      prevPriorities.map((priority) => (priority.templatePriorityId === id ? { ...priority, [field]: value } : priority))
+      prevPriorities.map((priority) =>
+        priority.templatePriorityId === id
+          ? { ...priority, [field]: field === 'maxObjectives' ? parseInt(value) || 0 : value }
+          : priority
+      )
     );
   };
 
@@ -226,6 +257,16 @@ const Formulaire = () => {
   };
 
   const handleSaveEditedPriorities = async () => {
+    if (editedPriorities.some((p) => p.maxObjectives > 6)) {
+      setErrorMessage('Une ou plusieurs priorités ont un nombre maximum d\'objectifs supérieur à 6.');
+      setOpenSnackbar(true);
+      return;
+    }
+    if (editedPriorities.some((p) => !p.name.trim())) {
+      setErrorMessage('Le nom d\'une priorité ne peut pas être vide.');
+      setOpenSnackbar(true);
+      return;
+    }
     try {
       const updatePromises = editedPriorities.map((priority) =>
         formulaireInstance.put('/Template/UpdatePriority', {
@@ -245,6 +286,8 @@ const Formulaire = () => {
       setEditedPriorities([]);
     } catch (error) {
       console.error('Error updating strategic priorities:', error);
+      setErrorMessage('Erreur lors de la mise à jour des priorités stratégiques.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -254,12 +297,13 @@ const Formulaire = () => {
 
   const handleAddColumnModalClose = () => {
     setIsAddColumnModalOpen(false);
-    setNewColumnName(''); // Reset the input field
+    setNewColumnName('');
   };
 
   const handleSaveColumn = async () => {
     if (!newColumnName.trim()) {
-      alert('Column name cannot be empty.');
+      setErrorMessage('Le nom de la colonne ne peut pas être vide.');
+      setOpenSnackbar(true);
       return;
     }
 
@@ -267,27 +311,28 @@ const Formulaire = () => {
       await formulaireInstance.post('/Template/AddDynamicColumn', null, {
         params: { columnName: newColumnName }
       });
-      // Optionally refresh dynamic columns
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
-
       setIsAddColumnModalOpen(false);
       setNewColumnName('');
     } catch (error) {
       console.error('Error adding dynamic column:', error);
-      alert('An error occurred while adding the column. Please try again.');
+      setErrorMessage('Erreur lors de l\'ajout de la colonne dynamique.');
+      setOpenSnackbar(true);
     }
   };
 
   const fetchInactiveColumns = async () => {
     try {
       const response = await formulaireInstance.get('/Template/GetAllColumns', {
-        params: { onlyActive: false } // Récupère uniquement les colonnes inactives
+        params: { onlyActive: false }
       });
       setInactiveColumns(response.data);
-      setIsEditColumnModalOpen(true); // Ouvre le modal après récupération
+      setIsEditColumnModalOpen(true);
     } catch (error) {
       console.error('Erreur lors de la récupération des colonnes inactives:', error);
+      setErrorMessage('Erreur lors de la récupération des colonnes inactives.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -297,8 +342,12 @@ const Formulaire = () => {
   };
 
   const handleSaveEditedColumns = async () => {
+    if (inactiveColumns.some((c) => !c.name.trim())) {
+      setErrorMessage('Le nom d\'une colonne ne peut pas être vide.');
+      setOpenSnackbar(true);
+      return;
+    }
     try {
-      // Préparer les requêtes PUT pour chaque colonne modifiée
       const updatePromises = inactiveColumns.map((column) =>
         formulaireInstance.put('/Template/UpdateDynamicColumn', {
           id: column.columnId,
@@ -307,19 +356,15 @@ const Formulaire = () => {
         })
       );
 
-      // Exécuter toutes les requêtes en parallèle
       await Promise.all(updatePromises);
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setFormTemplate(refreshedTemplate.data.template);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
-
-      // Fermer le modal et rafraîchir les colonnes inactives
       handleEditColumnModalClose();
-      // Optionnel : Vous pouvez recharger toutes les colonnes actives et inactives ici
-      // fetchAllColumns();
     } catch (error) {
       console.error('Erreur lors de la mise à jour des colonnes:', error);
-      alert('Une erreur est survenue. Veuillez réessayer.');
+      setErrorMessage('Erreur lors de la mise à jour des colonnes.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -328,36 +373,34 @@ const Formulaire = () => {
     html2canvas(input, { scale: 2 })
       .then((canvas) => {
         const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'pt', 'a4'); // Portrait, points, A4
-  
+        const pdf = new jsPDF('p', 'pt', 'a4');
+
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
         const imgWidth = pdfWidth;
         const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-  
+
         let heightLeft = imgHeight;
         let position = 0;
-  
-        // Ajouter la première page
+
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pdfHeight;
-  
-        // Ajouter des pages supplémentaires si nécessaire
+
         while (heightLeft > 0) {
           position = heightLeft - imgHeight;
           pdf.addPage();
           pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
           heightLeft -= pdfHeight;
         }
-  
+
         pdf.save('formulaire_Cadre.pdf');
       })
       .catch((err) => {
         console.error('Erreur lors de la génération du PDF', err);
-        // Optionnel : Afficher un message d'erreur à l'utilisateur
+        setErrorMessage('Erreur lors de la génération du PDF.');
+        setOpenSnackbar(true);
       });
   };
-  
 
   const DropdownMenu = ({ handleAddPriorityClick, handleEditPrioritiesClick, handleAddColumnClick, fetchInactiveColumns }) => {
     const [anchorEl, setAnchorEl] = useState(null);
@@ -414,6 +457,11 @@ const Formulaire = () => {
     );
   };
 
+  const handleCloseSnackbar = () => {
+    setOpenSnackbar(false);
+    setErrorMessage('');
+  };
+
   return (
     <Paper>
       <MainCard>
@@ -442,7 +490,6 @@ const Formulaire = () => {
         </Grid>
 
         <Box sx={{ padding: 2 }} ref={printRef}>
-          {/* Titre du contrat d'objectifs */}
           <Typography
             variant="h4"
             align="center"
@@ -464,7 +511,6 @@ const Formulaire = () => {
             )}
           </Typography>
 
-          {/* Informations de l'utilisateur */}
           <Grid container spacing={4} sx={{ mb: 3, mt: 2 }}>
             <Grid item xs={6}>
               <Paper sx={{ padding: 2, borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
@@ -492,7 +538,6 @@ const Formulaire = () => {
             </Grid>
           </Grid>
 
-          {/* Tableau des priorités stratégiques et des objectifs */}
           <TableContainer>
             <Grid item sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
               {isEditing && (
@@ -581,7 +626,7 @@ const Formulaire = () => {
                         <Typography variant="body1" sx={{ mb: 1 }}>
                           Date de fixation des objectifs :
                         </Typography>
-                        <Box sx={{ height: '20px'}} /> {/* Espace vide pour la date */}
+                        <Box sx={{ height: '20px' }} />
                       </Grid>
                     </Grid>
                   </Box>
@@ -599,7 +644,7 @@ const Formulaire = () => {
                         <Typography variant="body1" sx={{ mb: 1 }}>
                           Date évaluation mi-parcours :
                         </Typography>
-                        <Box sx={{ height: '20px'}} /> {/* Espace vide pour la date */}
+                        <Box sx={{ height: '20px' }} />
                       </Grid>
                     </Grid>
                   </Box>
@@ -615,7 +660,7 @@ const Formulaire = () => {
                       </Grid>
                       <Grid item xs>
                         <Typography variant="body1">Date de l'entretien final :</Typography>
-                        <Box sx={{ height: '20px'}} /> {/* Espace vide pour la date */}
+                        <Box sx={{ height: '20px' }} />
                       </Grid>
                     </Grid>
                   </Box>
@@ -624,20 +669,18 @@ const Formulaire = () => {
             </Grid>
           </Grid>
 
-          {/* signature */}
           <Grid container sx={{ mt: 2 }} spacing={4}>
             <Grid item xs={6} sx={{ textAlign: 'center' }}>
               <Typography variant="body1">Signature Collaborateur</Typography>
-              <Box sx={{ height: '100px', border: '1px solid black' }} /> {/* Ligne pour signature */}
+              <Box sx={{ height: '100px', border: '1px solid black' }} />
             </Grid>
             <Grid item xs={6} sx={{ textAlign: 'center' }}>
               <Typography variant="body1">Signature Manager</Typography>
-              <Box sx={{ height: '100px', border: '1px solid black' }} /> {/* Ligne pour signature */}
+              <Box sx={{ height: '100px', border: '1px solid black' }} />
             </Grid>
           </Grid>
         </Box>
 
-        {/* Modal for editing template name */}
         <Dialog open={isModalOpen} onClose={handleModalClose}>
           <DialogTitle>Modifier le titre du formulaire</DialogTitle>
           <DialogContent>
@@ -655,13 +698,12 @@ const Formulaire = () => {
             <Button onClick={handleModalClose} color="primary">
               Annuler
             </Button>
-            <Button onClick={handleSaveTemplateName} color="primary">
+            <Button onClick={handleSaveTemplateName} color="primary" disabled={!newTemplateName.trim()}>
               Enregistrer
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* Modal for adding strategic priority */}
         <Dialog open={isAddPriorityModalOpen} onClose={handleAddPriorityModalClose}>
           <DialogTitle>Ajouter une Priorité Stratégique</DialogTitle>
           <DialogContent>
@@ -680,14 +722,29 @@ const Formulaire = () => {
               type="number"
               fullWidth
               value={newMaxObjectives}
-              onChange={(e) => setNewMaxObjectives(parseInt(e.target.value))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                if (value <= 6 || isNaN(value)) {
+                  setNewMaxObjectives(value || 0);
+                } else {
+                  setErrorMessage('Le nombre maximum d\'objectifs ne peut pas dépasser 6.');
+                  setOpenSnackbar(true);
+                }
+              }}
+              inputProps={{ min: 0, max: 6 }}
+              error={newMaxObjectives > 6}
+              helperText={newMaxObjectives > 6 ? 'Maximum 6 objectifs' : ''}
             />
           </DialogContent>
           <DialogActions>
             <Button onClick={handleAddPriorityModalClose} color="primary">
               Annuler
             </Button>
-            <Button onClick={handleSavePriority} color="primary">
+            <Button
+              onClick={handleSavePriority}
+              color="primary"
+              disabled={newMaxObjectives > 6 || !newPriorityName.trim()}
+            >
               Enregistrer
             </Button>
           </DialogActions>
@@ -719,8 +776,19 @@ const Formulaire = () => {
                         <TextField
                           type="number"
                           value={priority.maxObjectives}
-                          onChange={(e) => handlePriorityChange(priority.templatePriorityId, 'maxObjectives', parseInt(e.target.value))}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value);
+                            if (value <= 6 || isNaN(value)) {
+                              handlePriorityChange(priority.templatePriorityId, 'maxObjectives', value || 0);
+                            } else {
+                              setErrorMessage('Le nombre maximum d\'objectifs ne peut pas dépasser 6.');
+                              setOpenSnackbar(true);
+                            }
+                          }}
                           fullWidth
+                          inputProps={{ min: 0, max: 6 }}
+                          error={priority.maxObjectives > 6}
+                          helperText={priority.maxObjectives > 6 ? 'Maximum 6 objectifs' : ''}
                         />
                       </TableCell>
                       <TableCell>
@@ -740,7 +808,11 @@ const Formulaire = () => {
             <Button onClick={handleEditPrioritiesModalClose} color="primary">
               Annuler
             </Button>
-            <Button onClick={handleSaveEditedPriorities} color="primary">
+            <Button
+              onClick={handleSaveEditedPriorities}
+              color="primary"
+              disabled={editedPriorities.some((p) => p.maxObjectives > 6 || !p.name.trim())}
+            >
               Enregistrer
             </Button>
           </DialogActions>
@@ -763,7 +835,7 @@ const Formulaire = () => {
             <Button onClick={handleAddColumnModalClose} color="primary">
               Annuler
             </Button>
-            <Button onClick={handleSaveColumn} color="primary">
+            <Button onClick={handleSaveColumn} color="primary" disabled={!newColumnName.trim()}>
               Enregistrer
             </Button>
           </DialogActions>
@@ -783,7 +855,6 @@ const Formulaire = () => {
                 <TableBody>
                   {inactiveColumns.map((column, index) => (
                     <TableRow key={column.columnId}>
-                      {/* Nom de la colonne */}
                       <TableCell>
                         <TextField
                           fullWidth
@@ -795,8 +866,6 @@ const Formulaire = () => {
                           }}
                         />
                       </TableCell>
-
-                      {/* Actif/Inactif */}
                       <TableCell>
                         <Checkbox
                           checked={column.isActive}
@@ -818,11 +887,21 @@ const Formulaire = () => {
             <Button onClick={handleEditColumnModalClose} color="primary">
               Annuler
             </Button>
-            <Button onClick={handleSaveEditedColumns} color="primary">
+            <Button
+              onClick={handleSaveEditedColumns}
+              color="primary"
+              disabled={inactiveColumns.some((c) => !c.name.trim())}
+            >
               Enregistrer
             </Button>
           </DialogActions>
         </Dialog>
+
+        <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+          <Alert onClose={handleCloseSnackbar} severity="error" sx={{ width: '100%' }}>
+            {errorMessage}
+          </Alert>
+        </Snackbar>
       </MainCard>
     </Paper>
   );
