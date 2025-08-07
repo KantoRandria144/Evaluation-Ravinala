@@ -111,7 +111,7 @@ const ImportNonCadre = () => {
         if (helpFile) formData.append('HelpFile', helpFile);
         if (userHelpContentFile) formData.append('UserHelpContentFile', userHelpContentFile);
 
-        if (!formData.has('EvaluationFile') && !formData.has('FixationFile') && !formData.has('MiParcoursIndicatorsFile') && !formData.has('MiParcoursCompetenceFile') && !formData.has('FinaleFile')) {
+        if (!formData.has('EvaluationFile') && !formData.has('FixationFile') && !formData.has('MiParcoursIndicatorsFile') && !formData.has('MiParcoursCompetenceFile') && !formData.has('FinaleFile') && !formData.has('HelpFile')&& !formData.has('UserHelpContentFile')) {
             setMessage('Veuillez importer au moins un fichier obligatoire.');
             setSeverity('error');
             return;
@@ -146,7 +146,7 @@ const ImportNonCadre = () => {
                 } else {
                     errorMsg = JSON.stringify(error.response.data);
                 }
-                setErrorDetails(error.response.data);
+                // setErrorDetails(error.response.data);
             } else if (error.message) {
                 errorMsg = error.message;
             }
@@ -218,10 +218,10 @@ const ImportNonCadre = () => {
                         <FileDropzone label="Évaluation finale" file={finaleFile} setFile={setFinaleFile} isRequired={false} isSubmitted={isSubmitted} status={importStatus?.finale} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                        <FileDropzone label="Sujets d’aide au développement du collaborateur" file={helpFile} setFile={setHelpFile} isRequired={false} isSubmitted={isSubmitted} status={false} />
+                        <FileDropzone label="Sujets d’aide au développement du collaborateur" file={helpFile} setFile={setHelpFile} isRequired={false} isSubmitted={isSubmitted} status={importStatus?.help} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                        <FileDropzone label="Contenus des sujets" file={userHelpContentFile} setFile={setUserHelpContentFile} isRequired={false} isSubmitted={isSubmitted} status={false} />
+                        <FileDropzone label="Contenus des sujets" file={userHelpContentFile} setFile={setUserHelpContentFile} isRequired={false} isSubmitted={isSubmitted} status={importStatus?.userHelpContent} />
                     </Grid>
                     <Grid item xs={12}>
                         <Button variant="contained" color="primary" type="submit" fullWidth disabled={isSubmitting}>
