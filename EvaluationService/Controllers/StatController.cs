@@ -197,6 +197,20 @@ namespace EvaluationService.Controllers
         //     return Ok(result);
         // }
 
+        // DTOs pour éviter les types anonymes et améliorer les performances
+        public class ObjectiveValueDto
+        {
+            public string Value { get; set; } = string.Empty;
+            public string? ValidatedBy { get; set; }
+            public DateTime CreatedAt { get; set; }
+        }
+
+        public class ObjectiveColumnDto
+        {
+            public string ColumnName { get; set; } = string.Empty;
+            public List<ObjectiveValueDto> Values { get; set; } = new();
+        }
+
         [HttpGet("getEvaluationFinaleScores/{year}")]
         public async Task<IActionResult> GetEvaluationFinaleScores(int year)
         {
@@ -242,19 +256,39 @@ namespace EvaluationService.Controllers
             if (allUsers == null)
                 return StatusCode(500, "Impossible de lire la liste des utilisateurs du service UserService.");
 
-            // 3) Récupération des UserObjectives pour les UserEvalId concernés
+            // 3) Récupération optimisée des objectifs via une seule requête JOIN
             var userEvalIds = evaluationFinaleScores.Select(s => s.UserEvalId).ToList();
-            var userObjectives = _context.UserObjectives
-                .Where(obj => userEvalIds.Contains(obj.UserEvalId))
-                .Select(obj => new
-                {
-                    obj.UserEvalId,
-                    obj.Description,
-                    obj.Weighting,
-                    obj.Result,
-                    obj.ResultIndicator
-                })
-                .ToList();
+            
+            var objectivesByUserEval = _context.HistoryCFis
+                .Where(h => userEvalIds.Contains(h.UserEvalId))
+                .Join(
+                    _context.HistoryObjectiveColumnValuesFis,
+                    h => h.HcfiId,
+                    hocv => hocv.HcfiId,
+                    (h, hocv) => new
+                    {
+                        h.UserEvalId,
+                        hocv.ColumnName,
+                        hocv.Value,
+                        hocv.ValidatedBy,
+                        hocv.CreatedAt
+                    }
+                )
+                .GroupBy(x => x.UserEvalId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(x => x.ColumnName)
+                        .Select(columnGroup => new ObjectiveColumnDto
+                        {
+                            ColumnName = columnGroup.Key,
+                            Values = columnGroup.Select(x => new ObjectiveValueDto
+                            {
+                                Value = x.Value,
+                                ValidatedBy = x.ValidatedBy,
+                                CreatedAt = x.CreatedAt
+                            }).ToList()
+                        }).ToList()
+                );
 
             // 4) Jointure finale : scores + user info + objectifs
             var result = (from score in evaluationFinaleScores
@@ -262,22 +296,13 @@ namespace EvaluationService.Controllers
                         select new
                         {
                             UserId = usr.Id,
-                            UserEvalId=score.UserEvalId,
+                            UserEvalId = score.UserEvalId,
                             Matricule = usr.Matricule,
                             Name = usr.Name,
                             Email = usr.Email,
                             Department = usr.Department,
                             Score = score.Score,
-                            Objectives = userObjectives
-                                .Where(o => o.UserEvalId == score.UserEvalId)
-                                .Select(o => new
-                                {
-                                    o.Description,
-                                    o.Weighting,
-                                    o.Result,
-                                    o.ResultIndicator
-                                })
-                                .ToList()
+                            Objectives = objectivesByUserEval.GetValueOrDefault(score.UserEvalId) ?? new List<ObjectiveColumnDto>()
                         })
                         .OrderByDescending(x => x.Score)
                         .ToList();
