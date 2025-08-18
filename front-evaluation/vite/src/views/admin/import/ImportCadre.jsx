@@ -88,12 +88,6 @@ function ImportCadre() {
   const handleCheckImportStatus = async () => {
     try {
       const res = await formulaireInstance.get(`/Import/import-status?annee=${annee}`);
-      await AuditService.logAction(
-        userId,
-        'Vérification du statut d\'importation des fichiers',
-        'Import',
-        null
-      );
 
       setImportStatus(res.data);
     } catch (error) {

@@ -46,12 +46,7 @@ function RenitialisationNonCadre() {
     const handleCheckResetStatus = async () => {
         try {
             const res = await formulaireInstance.get(`/NonCadreReset/reset-status?annee=${annee}`);
-            await AuditService.logAction(
-              userId,
-              'Vérification du statut d\'importation des non-cadres',
-              'Import',
-              null
-            );
+            
             setImportStatus(res.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du statut.", error);
