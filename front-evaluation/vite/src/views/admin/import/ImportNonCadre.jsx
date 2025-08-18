@@ -92,12 +92,6 @@ const ImportNonCadre = () => {
     const handleCheckImportStatus = async () => {
         try {
             const res = await formulaireInstance.get(`/NonCadreImport/import-status?annee=${annee}`);
-            await AuditService.logAction(
-                userId,
-                'Vérification du statut d\'importation des fichiers non-cadres',
-                'Import',
-                null
-            );
             setImportStatus(res.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du statut d'importation.", error);

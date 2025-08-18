@@ -37,7 +37,6 @@ import AddIcon from '@mui/icons-material/Add';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AuditService from '../../../../services/AuditService';
 
 // Styled components for table cells and rows
