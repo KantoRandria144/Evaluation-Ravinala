@@ -17,15 +17,97 @@ import {
   CardContent,
   TablePagination,
   MenuItem,
-  IconButton, // Importation du composant IconButton
-  Menu // Importation du composant Menu
+  IconButton,
+  Menu,
+  Collapse,
+  Chip
 } from '@mui/material';
-import MoreVertIcon from '@mui/icons-material/MoreVert'; // Importation de l'icône à trois points
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { LocalizationProvider, DesktopDatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import * as XLSX from 'xlsx'; // Importation de la bibliothèque xlsx
 import jsPDF from 'jspdf'; // Importation de la bibliothèque jsPDF
 import 'jspdf-autotable';
+
+// Composant Row pour gérer l'expand/collapse des objectifs
+function Row({ user, index, page, rowsPerPage }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <TableRow key={user.userId}>
+        <TableCell sx={{ padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+          {page * rowsPerPage + index + 1}
+        </TableCell>
+        <TableCell sx={{ padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+          {user.matricule}
+        </TableCell>
+        <TableCell sx={{ padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+          {user.name}
+        </TableCell>
+        <TableCell sx={{ padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+          {user.department}
+        </TableCell>
+        <TableCell sx={{ padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+          {user.score}
+        </TableCell>
+        <TableCell sx={{ padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+          {user.objectives && user.objectives.length > 0 ? (
+            <IconButton
+              aria-label="expand row"
+              size="small"
+              onClick={() => setOpen(!open)}
+            >
+              {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+            </IconButton>
+          ) : (
+            <Typography variant="body2" color="textSecondary">
+              Aucun objectif
+            </Typography>
+          )}
+        </TableCell>
+      </TableRow>
+      {user.objectives && user.objectives.length > 0 && (
+        <TableRow>
+          <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={6}>
+            <Collapse in={open} timeout="auto" unmountOnExit>
+              <Box sx={{ margin: 1 }}>
+                <Typography variant="h6" gutterBottom component="div">
+                  Détails des objectifs
+                </Typography>
+                {user.objectives.map((objective, objIndex) => (
+                  <Box key={objIndex} sx={{ mb: 2 }}>
+                    <Chip 
+                      label={objective.columnName} 
+                      color="primary" 
+                      sx={{ mb: 1 }} 
+                    />
+                    <Box sx={{ ml: 2 }}>
+                      {objective.values.map((value, valueIndex) => (
+                        <Box key={valueIndex} sx={{ mb: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+                          <Typography variant="body2">
+                            <strong>Valeur:</strong> {value.value}
+                          </Typography>
+                          {value.validatedBy && (
+                            <Typography variant="caption" color="textSecondary">
+                              Validé par: {value.validatedBy} le {new Date(value.createdAt).toLocaleDateString('fr-FR')}
+                            </Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Collapse>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
 
 const ResultSummary = () => {
   const currentYear = new Date().getFullYear();
@@ -83,7 +165,6 @@ const ResultSummary = () => {
     setPage(0);
   };
 
-  // Gestionnaires pour le menu de téléchargement
   const handleMenuClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -92,34 +173,70 @@ const ResultSummary = () => {
     setAnchorEl(null);
   };
 
-  // Fonction pour télécharger les données en Excel
+  // Fonction pour télécharger les données en Excel avec les objectifs
   const downloadExcel = () => {
-    // Préparer toutes les données
-    const dataToExport = scores.map((user, index) => ({
+    const workbook = XLSX.utils.book_new();
+    
+    // Feuille principale avec résumé des scores
+    const mainData = scores.map((user, index) => ({
       '#': index + 1,
       Matricule: user.matricule,
       Nom: user.name,
+      Email: user.email,
       Département: user.department,
-      Score: user.score
+      Score: user.score,
+      'Nombre d\'objectifs': user.objectives ? user.objectives.length : 0
     }));
 
-    // Créer une nouvelle feuille de calcul à partir des données
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const mainWorksheet = XLSX.utils.json_to_sheet(mainData);
+    XLSX.utils.book_append_sheet(workbook, mainWorksheet, 'Résumé des scores');
 
-    // Créer un nouveau classeur et ajouter la feuille de calcul
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Scores');
+    // Feuille détaillée avec les objectifs
+    const detailData = [];
+    scores.forEach((user, userIndex) => {
+      if (user.objectives && user.objectives.length > 0) {
+        user.objectives.forEach((objective, objIndex) => {
+          objective.values.forEach((value, valueIndex) => {
+            detailData.push({
+              '#': userIndex + 1,
+              Matricule: user.matricule,
+              Nom: user.name,
+              Département: user.department,
+              Score: user.score,
+              'Type d\'objectif': objective.columnName,
+              'Détail': value.value,
+              'Validé par': value.validatedBy || '',
+              'Date de création': new Date(value.createdAt).toLocaleDateString('fr-FR')
+            });
+          });
+        });
+      } else {
+        // Ajouter une ligne même si pas d'objectifs
+        detailData.push({
+          '#': userIndex + 1,
+          Matricule: user.matricule,
+          Nom: user.name,
+          Département: user.department,
+          Score: user.score,
+          'Type d\'objectif': 'Aucun objectif',
+          'Détail': '',
+          'Validé par': '',
+          'Date de création': ''
+        });
+      }
+    });
 
-    // Générer le fichier Excel et le télécharger
-    XLSX.writeFile(workbook, `Scores_${selectedYear.getFullYear()}.xlsx`);
+    const detailWorksheet = XLSX.utils.json_to_sheet(detailData);
+    XLSX.utils.book_append_sheet(workbook, detailWorksheet, 'Détails des objectifs');
 
-    // Fermer le menu après le téléchargement
+    // Générer le fichier Excel
+    XLSX.writeFile(workbook, `Scores_detailles_${selectedYear.getFullYear()}.xlsx`);
     handleMenuClose();
   };
 
-  // Fonction pour télécharger les données en PDF
+  // Fonction pour télécharger les données en PDF avec objectifs
   const downloadPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('landscape'); // Mode paysage pour plus d'espace
 
     // Titre
     doc.setFontSize(18);
@@ -129,21 +246,72 @@ const ResultSummary = () => {
     doc.setFontSize(12);
     doc.text(`Année: ${selectedYear.getFullYear()}`, 14, 30);
 
-    // Préparer les données pour la table
-    const tableColumn = ['#', 'Matricule', 'Nom', 'Département', 'Contrat d\'objectif'];
-    const tableRows = scores.map((user, index) => [index + 1, user.matricule, user.name, user.department, user.score]);
+    // Tableau principal des scores
+    const tableColumn = ['#', 'Matricule', 'Nom', 'Département', 'Score', 'Nb Objectifs'];
+    const tableRows = scores.map((user, index) => [
+      index + 1, 
+      user.matricule, 
+      user.name, 
+      user.department, 
+      user.score,
+      user.objectives ? user.objectives.length : 0
+    ]);
 
-    // Ajouter la table au document PDF
     doc.autoTable({
       head: [tableColumn],
       body: tableRows,
-      startY: 35
+      startY: 35,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [41, 128, 185] }
     });
 
-    // Générer le fichier PDF et le télécharger
-    doc.save(`Scores_${selectedYear.getFullYear()}.pdf`);
+    // Page séparée pour les détails des objectifs
+    doc.addPage();
+    doc.setFontSize(16);
+    doc.text('Détails des objectifs', 14, 22);
 
-    // Fermer le menu après le téléchargement
+    let yPosition = 35;
+    scores.forEach((user, userIndex) => {
+      if (user.objectives && user.objectives.length > 0) {
+        // Vérifier si on a assez de place sur la page
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${user.name} (${user.matricule}) - Score: ${user.score}`, 14, yPosition);
+        yPosition += 10;
+        
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+
+        user.objectives.forEach((objective) => {
+          doc.text(`Type: ${objective.columnName}`, 20, yPosition);
+          yPosition += 7;
+
+          objective.values.forEach((value) => {
+            // Diviser le texte long en plusieurs lignes
+            const splitText = doc.splitTextToSize(`• ${value.value}`, 250);
+            doc.text(splitText, 25, yPosition);
+            yPosition += splitText.length * 5;
+            
+            if (value.validatedBy) {
+              doc.setFontSize(8);
+              doc.text(`Validé par: ${value.validatedBy} le ${new Date(value.createdAt).toLocaleDateString('fr-FR')}`, 30, yPosition);
+              yPosition += 5;
+              doc.setFontSize(10);
+            }
+            yPosition += 3;
+          });
+          yPosition += 5;
+        });
+        yPosition += 10;
+      }
+    });
+
+    doc.save(`Scores_detailles_${selectedYear.getFullYear()}.pdf`);
     handleMenuClose();
   };
 
@@ -181,8 +349,8 @@ const ResultSummary = () => {
                     horizontal: 'right'
                   }}
                 >
-                  <MenuItem onClick={downloadExcel}>Télécharger Excel</MenuItem>
-                  <MenuItem onClick={downloadPDF}>Télécharger PDF</MenuItem>
+                  <MenuItem onClick={downloadExcel}>Télécharger Excel détaillé</MenuItem>
+                  <MenuItem onClick={downloadPDF}>Télécharger PDF détaillé</MenuItem>
                 </Menu>
               </Grid>
             </Grid>
@@ -201,7 +369,6 @@ const ResultSummary = () => {
                   />
                 </LocalizationProvider>
               </Grid>
-              {/* Remplacement du bouton de téléchargement par un menu à trois points */}
             </Grid>
 
             <Box mt={4}>
@@ -217,29 +384,44 @@ const ResultSummary = () => {
                 </Alert>
               )}
 
-              {!loading && !error && scores.length === 0 && <Alert severity="info">Aucune donnée trouvée pour l'année sélectionnée.</Alert>}
+              {!loading && !error && scores.length === 0 && (
+                <Alert severity="info">Aucune donnée trouvée pour l'année sélectionnée.</Alert>
+              )}
 
               {scores.length > 0 && (
                 <Paper>
                   <Table aria-label="collapsible table" sx={{ border: '1px solid #e0e0e0', borderRadius: '4px' }}>
                     <TableHead>
                       <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px',borderRight: '1px solid #e0e0e0' }}>#</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px',borderRight: '1px solid #e0e0e0' }}>Matricule</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px',borderRight: '1px solid #e0e0e0' }}>Nom</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px',borderRight: '1px solid #e0e0e0' }}>Département</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px',borderRight: '1px solid #e0e0e0' }}>Contrat d'objectif</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+                          #
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+                          Matricule
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+                          Nom
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+                          Département
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+                          Contrat d'objectif
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
+                          Objectifs
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {scores.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((user, index) => (
-                        <TableRow key={user.userId}>
-                          <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{page * rowsPerPage + index + 1}</TableCell>
-                          <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.matricule}</TableCell>
-                          <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.name}</TableCell>
-                          <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.department}</TableCell>
-                          <TableCell sx={{ padding: '12px',borderRight: '1px solid #e0e0e0' }}>{user.score}</TableCell>
-                        </TableRow>
+                        <Row 
+                          key={user.userId} 
+                          user={user} 
+                          index={index} 
+                          page={page} 
+                          rowsPerPage={rowsPerPage} 
+                        />
                       ))}
                     </TableBody>
                   </Table>

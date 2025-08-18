@@ -10,26 +10,22 @@ using System.Threading.Tasks;
 
 namespace EvaluationService.Controllers
 {
-    // Définit la route de base pour ce contrôleur d'API
     [Route("api/[controller]")]
     [ApiController]
-    public class NonCadreResetController : ControllerBase
+    public class CadreResetController : ControllerBase
     {
         private readonly AppdbContext _context;
-        private readonly ILogger<NonCadreResetController> _logger;
+        private readonly ILogger<CadreResetController> _logger;
 
-        // Injection des dépendances : contexte BDD et logger
-        public NonCadreResetController(AppdbContext context, ILogger<NonCadreResetController> logger)
+        public CadreResetController(AppdbContext context, ILogger<CadreResetController> logger)
         {
             _context = context;
             _logger = logger;
         }
 
-        // Endpoint POST pour réinitialiser les données NonCadre selon les options du client
-        [HttpPost("reset-non-cadre")]
-        public async Task<IActionResult> ResetNonCadre([FromBody] ResetNonCadreRequest request)
+        [HttpPost("reset-cadre")]
+        public async Task<IActionResult> ResetCadre([FromBody] ResetCadreRequest request)
         {
-            // Vérifie la validité de la requête
             if (request == null)
             {
                 return BadRequest(new ControllerErrorResponse
@@ -38,10 +34,7 @@ namespace EvaluationService.Controllers
                 });
             }
 
-            // Vérifie qu'au moins une case est cochée
-            if (!request.Evaluation && !request.Fixation && !request.MiParcoursIndicators &&
-                !request.MiParcoursCompetence && !request.Finale && !request.Help &&
-                !request.UserHelpContent)
+            if (!request.Evaluation && !request.Fixation && !request.MiParcours && !request.Finale)
             {
                 return BadRequest(new ControllerErrorResponse
                 {
@@ -49,7 +42,6 @@ namespace EvaluationService.Controllers
                 });
             }
 
-            // Vérifie la validité de l'année
             if (request.Annee < 1900 || request.Annee > 2100)
             {
                 return BadRequest(new ControllerErrorResponse
@@ -58,23 +50,20 @@ namespace EvaluationService.Controllers
                 });
             }
 
-            // Démarre une transaction pour garantir la cohérence des suppressions
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Recherche l'évaluation NonCadre pour l'année donnée
                 var evaluation = await _context.Evaluations
-                    .FirstOrDefaultAsync(e => e.EvalAnnee == request.Annee && e.Type == "NonCadre");
+                    .FirstOrDefaultAsync(e => e.EvalAnnee == request.Annee && e.Type == "Cadre");
 
                 if (evaluation == null)
                 {
                     return NotFound(new ControllerErrorResponse
                     {
-                        ErrorMessage = $"Aucune évaluation NonCadre trouvée pour l'année {request.Annee}."
+                        ErrorMessage = $"Aucune évaluation Cadre trouvée pour l'année {request.Annee}."
                     });
                 }
 
-                // Récupère les IDs des UserEvaluations liés à cette évaluation
                 var userEvalIds = await _context.UserEvaluations
                     .Where(ue => ue.EvalId == evaluation.EvalId)
                     .Select(ue => ue.UserEvalId)
@@ -84,18 +73,13 @@ namespace EvaluationService.Controllers
 
                 if (userEvalIds.Any())
                 {
-                    // Suppression des tables dépendantes dans l'ordre pour éviter les violations de clés étrangères
+                    // Delete dependent records in the correct order to avoid FK violations
                     if (request.Finale)
                     {
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryCFis");
                     }
 
-                    if (request.MiParcoursCompetence)
-                    {
-                        await DeleteDependentRecordsAsync(userEvalIds, "HistoryCMps");
-                    }
-
-                    if (request.MiParcoursIndicators)
+                    if (request.MiParcours)
                     {
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryUserIndicatorMPs");
                     }
@@ -105,17 +89,12 @@ namespace EvaluationService.Controllers
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryCFos");
                     }
 
-                    if (request.UserHelpContent)
-                    {
-                        await DeleteDependentRecordsAsync(userEvalIds, "UserHelpContents");
-                    }
-
-                    // Suppression critique pour éviter les violations de FK
+                    // Delete UserObjectives (critical to avoid FK_UserObjectives_UserEvaluations_UserEvalId)
                     _logger.LogInformation($"Attempting to delete UserObjectives for year {request.Annee}.");
                     await DeleteDependentRecordsAsync(userEvalIds, "UserObjectives");
 
-                    // Suppression d'autres tables dépendantes si elles existent
-                    var dependentTables = new[] { "UserIndicators", "UserCompetencies" }; // Ajouter d'autres tables si besoin
+                    // Delete other dependent tables if they exist
+                    var dependentTables = new[] { "UserIndicators", "UserCompetencies" }; // Add more as needed
                     foreach (var tableName in dependentTables)
                     {
                         if (_context.Model.GetEntityTypes().Any(e => e.ClrType.Name == tableName))
@@ -124,7 +103,7 @@ namespace EvaluationService.Controllers
                         }
                     }
 
-                    // Suppression des UserEvaluations si demandé
+                    // Delete UserEvaluations if requested
                     if (request.Evaluation)
                     {
                         var deletedUserEvalCount = await _context.UserEvaluations
@@ -134,16 +113,7 @@ namespace EvaluationService.Controllers
                     }
                 }
 
-                // Suppression des aides si demandé
-                if (request.Help && evaluation.TemplateId != null)
-                {
-                    var deletedHelpCount = await _context.Helps
-                        .Where(h => h.TemplateId == evaluation.TemplateId)
-                        .ExecuteDeleteAsync();
-                    _logger.LogInformation($"Deleted {deletedHelpCount} Help records for year {request.Annee}.");
-                }
-
-                // Suppression de l'évaluation principale si demandé
+                // Delete the main Evaluation record last if requested
                 if (request.Evaluation)
                 {
                     var deletedEvalCount = await _context.Evaluations
@@ -160,7 +130,7 @@ namespace EvaluationService.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, $"Error resetting non-cadre data for year {request.Annee}.");
+                _logger.LogError(ex, $"Error resetting cadre data for year {request.Annee}.");
                 return StatusCode(500, new ControllerErrorResponse
                 {
                     ErrorMessage = "Une erreur est survenue lors de la réinitialisation.",
@@ -169,57 +139,41 @@ namespace EvaluationService.Controllers
             }
         }
 
-        // Endpoint GET pour vérifier l'état de présence des données pour une année donnée
         [HttpGet("reset-status")]
         public async Task<IActionResult> GetResetStatus([FromQuery] int annee)
         {
-            _logger.LogInformation("Checking reset status for year {Year}.", annee);
-            var evaluation = await _context.Evaluations.FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "NonCadre");
+            var evaluation = await _context.Evaluations.FirstOrDefaultAsync(e => e.EvalAnnee == annee && e.Type == "Cadre");
 
             if (evaluation == null)
             {
-                _logger.LogInformation("No evaluation found for year {Year}.", annee);
                 return Ok(new
                 {
                     Evaluation = false,
                     Fixation = false,
-                    MiParcoursIndicators = false,
-                    MiParcoursCompetence = false,
-                    Finale = false,
-                    Help = false,
-                    UserHelpContent = false
+                    MiParcours = false,
+                    Finale = false
                 });
             }
 
-            // Vérifie la présence de données dans chaque table liée
             var userEvalIds = await _context.UserEvaluations
                 .Where(ue => ue.EvalId == evaluation.EvalId)
                 .Select(ue => ue.UserEvalId)
                 .ToListAsync();
 
-            bool hasFixation = await _context.HistoryUserIndicatorFOs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-            bool hasMiParcoursIndicators = await _context.HistoryUserIndicatorMPs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-            bool hasMiParcoursCompetence = await _context.HistoryUserCompetenceMPs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-            bool hasFinale = await _context.HistoryUserindicatorFis.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-            bool hasHelp = await _context.Helps.AnyAsync(h => h.TemplateId == evaluation.TemplateId);
-            bool hasUserHelpContent = await _context.UserHelpContents.AnyAsync(uhc => userEvalIds.Contains(uhc.UserEvalId));
-
-            _logger.LogInformation("Import status for year {Year}: Evaluation={Evaluation}, Fixation={Fixation}, MiParcoursIndicators={MiParcoursIndicators}, MiParcoursCompetence={MiParcoursCompetence}, Finale={Finale}, Help={Help}, UserHelpContent={UserHelpContent}.",
-                annee, true, hasFixation, hasMiParcoursIndicators, hasMiParcoursCompetence, hasFinale, hasHelp, hasUserHelpContent);
+            bool hasFixation = await _context.HistoryCFos.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasMiParcours = await _context.HistoryCMps.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFinale = await _context.HistoryCFis.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
 
             return Ok(new
             {
                 Evaluation = true,
                 Fixation = hasFixation,
-                MiParcoursIndicators = hasMiParcoursIndicators,
-                MiParcoursCompetence = hasMiParcoursCompetence,
-                Finale = hasFinale,
-                Help = hasHelp,
-                UserHelpContent = hasUserHelpContent
+                MiParcours = hasMiParcours,
+                Finale = hasFinale
             });
         }
 
-        // Méthode utilitaire pour supprimer les enregistrements dépendants d'une table donnée
+        // Helper method to delete records from dependent tables
         private async Task<int> DeleteDependentRecordsAsync(List<int> userEvalIds, string tableName, string foreignKeyColumn = "UserEvalId")
         {
             try
@@ -237,16 +191,13 @@ namespace EvaluationService.Controllers
         }
     }
 
-    // Modèle de la requête pour la réinitialisation
-    public class ResetNonCadreRequest
+    public class ResetCadreRequest
     {
         public int Annee { get; set; }
         public bool Evaluation { get; set; }
         public bool Fixation { get; set; }
-        public bool MiParcoursIndicators { get; set; }
-        public bool MiParcoursCompetence { get; set; }
+        public bool MiParcours { get; set; }
         public bool Finale { get; set; }
-        public bool Help { get; set; }
-        public bool UserHelpContent { get; set; }
     }
+
 }

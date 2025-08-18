@@ -48,7 +48,7 @@ public static class AuthorizationConfig
          { 27, new List<int> { 27 } }, // Importer les évaluations 
        
       //Export
-         { 28, new List<int> { 28 } }, // Exporter les évaluations
+         { 28, new List<int> { 28 } }, // er les évaluations
 
       //Gestion des notifications
          { 29, new List<int> { 29 } }, // Recevoir une notification au début et à la clôture d'une évaluation.

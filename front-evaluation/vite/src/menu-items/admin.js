@@ -102,17 +102,7 @@ const admin = {
       requiredHabilitation: 27,
       icon: icons.IconFileImport,
       breadcrumbs: false
-    },
-    {
-      id: 'renitialisationCSV',
-      title: 'Reinitialisation',
-      type: 'item',
-      url: '/renitialiser/renitialisationCSV',
-      requiredHabilitation: 27,
-      icon: icons.IconRotateClockwise, // plus explicite pour "reset"
-      breadcrumbs: false
     }
-
 
   ]
 };
