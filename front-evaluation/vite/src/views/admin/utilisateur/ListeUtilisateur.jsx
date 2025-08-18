@@ -37,6 +37,7 @@ import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 import EditIcon from '@mui/icons-material/Edit';
 import { TableSortLabel } from '@mui/material';
 import { visuallyHidden } from '@mui/utils';
+import AuditService from '../../../services/AuditService';
 
 const ListeUtilisateur = () => {
   const [openRow, setOpenRow] = useState(null);
@@ -72,6 +73,9 @@ const ListeUtilisateur = () => {
   const [orderBy, setOrderBy] = useState('name'); // Colonne par défaut (assurez-vous que 'name' correspond à la clé utilisée)
 
   // Vérification des habilitations
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
+
   const checkPermissions = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -86,6 +90,13 @@ const ListeUtilisateur = () => {
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${UPADATE_USER}`
       );
       setCanEditUser(editUserResponse.data.hasAccess);
+
+      await AuditService.logAction(
+        userId,
+        'Vérification des autorisations pour assignation et mise à jour des utilisateurs',
+        'Check',
+        `Habilitations Admin ID: ${ASSIGN_HABILITATION}, ${UPADATE_USER}`
+      );
     } catch (error) {
       console.error('Erreur lors de la vérification des autorisations :', error);
     }
@@ -117,12 +128,20 @@ const ListeUtilisateur = () => {
         typeUser: mapTypeUser(employee.typeUser) // Appliquer le mapping au moment de la récupération
       }));
       setEmployees(mappedEmployees);
+
+      await AuditService.logAction(
+        userId,
+        'Consultation de la liste initiale des utilisateurs',
+        'Fetch',
+        null
+      );
+
     } catch (error) {
       console.error('Error fetching initial users:', error);
     }
   };
 
-  // Récupération de la liste filtrée via l'endpoint '/User/all'
+  // Consultation de la liste filtrée via l'endpoint '/User/all'
   // On met "undefined" quand le paramètre n'est pas renseigné (pour ne pas le passer à l’API)
   const fetchFilteredUsers = async (nameOrMail, department, typeUser, matricule) => {
     try {
@@ -136,6 +155,14 @@ const ListeUtilisateur = () => {
       });
       setEmployees(response.data);
       setCurrentPage(1); // Reset la pagination à la page 1 après filtrage
+
+      await AuditService.logAction(
+        userId,
+        'Consultation des utilisateurs avec filtres',
+        'Fetch',
+        `Nom ou Email: ${nameOrMail || 'aucun'}, Département: ${department || 'aucun'}, Type: ${typeUser || 'aucun'}, Matricule: ${matricule || 'aucun'}`
+      );
+
     } catch (error) {
       console.error('Error fetching filtered users:', error);
       setSnackbar({ open: true, message: 'Erreur lors du filtrage des utilisateurs.', severity: 'error' });
@@ -183,6 +210,13 @@ const ListeUtilisateur = () => {
 
   // Assignation d'habilitations
   const handleAddClick = (userId) => {
+    AuditService.logAction(
+      userId,
+      'Navigation vers la page d\'assignation d\'habilitations pour un utilisateur',
+      'Navigate',
+      `Utilisateur ID: ${userId}`
+    );
+
     navigate(`/utilisateur/assignation/${userId}`); // Navigation avec userId
   };
 
@@ -215,6 +249,12 @@ const ListeUtilisateur = () => {
       );
 
       setSnackbar({ open: true, message: 'Habilitation supprimée avec succès.', severity: 'success' });
+      await AuditService.logAction(
+        userId,
+        'Suppression d\'une habilitation pour un utilisateur',
+        'Delete',
+        `Utilisateur: ${userId}, Habilitation: ${habilitationId}, Label: ${label}`
+      );
     } catch (error) {
       console.error('Erreur lors de la suppression des habilitations:', error);
       const errorMessage = error.response?.data || 'Erreur lors de la suppression des habilitations.';
@@ -242,6 +282,14 @@ const ListeUtilisateur = () => {
       });
       // Rafraîchir la liste
       fetchInitialUsers();
+
+      await AuditService.logAction(
+        userId,
+        'Synchronisation des utilisateurs',
+        'Sync',
+        `Ajoutés: ${response.data.Added}, Mis à jour: ${response.data.Updated}, Supprimés: ${response.data.Deleted}`
+      );
+
     } catch (error) {
       console.error('Erreur lors de la synchronisation des utilisateurs:', error);
       setSnackbar({
@@ -298,7 +346,15 @@ const ListeUtilisateur = () => {
         )
       );
 
+      await AuditService.logAction(
+        userId,
+        'Mise à jour du type d\'utilisateur',
+        'Update',
+        `Utilisateur: ${selectedUser.id}, Nouveau Type: ${newTypeUser === 0 ? 'Cadre' : newTypeUser === 1 ? 'NonCadre' : 'aucun'}`
+      );
+
       setOpenEditDialog(false);
+
     } catch (error) {
       console.error("Erreur lors de la mise à jour du type d'utilisateur:", error);
       const errorMessage = error.response?.data || "Erreur lors de la mise à jour du type d'utilisateur.";
@@ -342,7 +398,6 @@ const ListeUtilisateur = () => {
     setOrder(isAsc ? 'desc' : 'asc');
     setOrderBy(property);
   };
-  
 
   return (
     <Paper>

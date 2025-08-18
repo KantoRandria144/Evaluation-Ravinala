@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { formulaireInstance } from '../../../axiosConfig';
 import { Grid, Typography, Button, Box, Alert, TextField } from '@mui/material';
 import { useDropzone } from 'react-dropzone';
+import AuditService from "../../../services/AuditService";
 
 const FileDropzone = ({ label, file, setFile, isRequired, isSubmitted, status }) => {
     const isDisabled = status === true;
@@ -75,6 +76,8 @@ const ImportNonCadre = () => {
     const [errorDetails, setErrorDetails] = useState(null);
     const [annee, setAnnee] = useState(new Date().getFullYear());
     const [importStatus, setImportStatus] = useState({});
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
 
     useEffect(() => {
         if (annee) {
@@ -89,6 +92,12 @@ const ImportNonCadre = () => {
     const handleCheckImportStatus = async () => {
         try {
             const res = await formulaireInstance.get(`/NonCadreImport/import-status?annee=${annee}`);
+            await AuditService.logAction(
+                userId,
+                'Vérification du statut d\'importation des fichiers non-cadres',
+                'Import',
+                null
+            );
             setImportStatus(res.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du statut d'importation.", error);
@@ -125,6 +134,13 @@ const ImportNonCadre = () => {
             const response = await formulaireInstance.post('/NonCadreImport/import-non-cadre-evaluation', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
+
+            await AuditService.logAction(
+                userId,
+                'Importation des fichiers d\'évaluation non-cadres',
+                'Import',
+                null
+            );
 
             if (response.status === 200) {
                 setMessage('Données importées avec succès.');

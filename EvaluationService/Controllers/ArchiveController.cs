@@ -1,6 +1,7 @@
 using CommonModels.DTOs;
 using EvaluationService.Data;
 using EvaluationService.Models;
+using EvaluationService.Service;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 // using CommonModels.DTOs;
@@ -14,12 +15,14 @@ namespace EvaluationService.Controllers
         private readonly AppdbContext _context;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
+        private readonly IAuditService _auditService;
 
-        public ArchiveController(AppdbContext context, IHttpClientFactory httpClientFactory, IConfiguration configuration)
+        public ArchiveController(AppdbContext context, IHttpClientFactory httpClientFactory, IConfiguration configuration, IAuditService auditService)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
+            _auditService = auditService;
         }
 
         [HttpGet("years/{userId}/{type}")]
@@ -217,7 +220,6 @@ namespace EvaluationService.Controllers
                 {
                     return NotFound(new { message = "No mi-parcours history found for the specified user and evaluation." });
                 }
-
                 return Ok(miParcoursHistory);
             }
             else if (phase == "Évaluation Finale")
@@ -303,7 +305,7 @@ namespace EvaluationService.Controllers
             }
 
             var totalWeightingSum = totalWeightings.Sum(g => g.TotalWeighting);
-
+            
             return Ok(new
             {
                 TotalWeightings = totalWeightings,
@@ -403,7 +405,7 @@ namespace EvaluationService.Controllers
 
             var totalWeightingSum = totalWeightingAndResults.Sum(g => g.TotalWeighting);
             var totalResultSum = totalWeightingAndResults.Sum(g => g.TotalResult);
-
+            
             return Ok(new
             {
                 TotalWeightingAndResults = totalWeightingAndResults,
@@ -605,7 +607,7 @@ namespace EvaluationService.Controllers
                 CompetenceAvg = competenceAvg,
                 IndicatorAvg = indicatorAvg
             };
-
+        
             return Ok(response);
         }
 

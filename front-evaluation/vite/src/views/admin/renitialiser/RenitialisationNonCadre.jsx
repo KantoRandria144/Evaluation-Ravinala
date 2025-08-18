@@ -10,6 +10,7 @@ import {
     Checkbox,
     FormControlLabel
 } from '@mui/material';
+import AuditService from '../../../services/AuditService';
 
 function RenitialisationNonCadre() {
     const [annee, setAnnee] = useState(new Date().getFullYear());
@@ -29,7 +30,10 @@ function RenitialisationNonCadre() {
         userHelpContent: false
     });
 
-    useEffect(() => {
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
+
+  useEffect(() => {
         if (annee) {
             setMessage('');
             setSeverity('success');
@@ -42,6 +46,12 @@ function RenitialisationNonCadre() {
     const handleCheckResetStatus = async () => {
         try {
             const res = await formulaireInstance.get(`/NonCadreReset/reset-status?annee=${annee}`);
+            await AuditService.logAction(
+              userId,
+              'Vérification du statut d\'importation des non-cadres',
+              'Import',
+              null
+            );
             setImportStatus(res.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du statut.", error);
@@ -75,6 +85,13 @@ function RenitialisationNonCadre() {
                 annee,
                 ...selectedCadres
             });
+
+          await AuditService.logAction(
+            userId,
+            'Réinitialisation des reset-non-cadre',
+            'Import',
+            null
+          );
 
             if (response.status === 200) {
                 setMessage('Cadres réinitialisés avec succès.');

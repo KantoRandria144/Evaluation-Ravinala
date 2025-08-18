@@ -35,6 +35,7 @@ import AddIcon from '@mui/icons-material/Add';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AuditService from '../../../../services/AuditService';
 
 // Styled components for table cells and rows
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -82,11 +83,10 @@ const Formulaire = () => {
 
   const [canEdit, setCanEdit] = useState(false);
   const EDIT_FORM = 10; //modifier la formulaire d'évaluation
-
+  const user = JSON.parse(localStorage.getItem('user'));
+  const userId = user.id;
   const checkPermissions = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const userId = user.id;
 
       const editResponse = await formulaireInstance.get(
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${EDIT_FORM}`
@@ -176,6 +176,12 @@ const Formulaire = () => {
       setIsEditIconVisible(false);
       setIsEditing(false);
       await formulaireInstance.put(`/Template/UpdateCadreTemplateName`, newTemplateName);
+      await AuditService.logAction(
+        userId,
+        `Modification du nom du template à: ${newTemplateName}`,
+        'Update',
+        null
+      );
       setFormTemplate({ ...formTemplate, name: newTemplateName });
       setIsModalOpen(false);
       setIsEditIconVisible(false);
@@ -199,6 +205,12 @@ const Formulaire = () => {
         maxObjectives: newMaxObjectives,
         templateId: templateId
       });
+      await AuditService.logAction(
+        userId,
+        `Ajout d'une priorité stratégique: ${newPriorityName}`,
+        'Create',
+        null
+      );
       setIsAddPriorityModalOpen(false);
       // Refresh template data after adding a new priority
       const response = await formulaireInstance.get(`/Template/${templateId}`);
@@ -237,6 +249,12 @@ const Formulaire = () => {
       );
 
       await Promise.all(updatePromises);
+      await AuditService.logAction(
+        userId,
+        'Mise à jour des priorités stratégiques',
+        'Update',
+        null
+      );
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setFormTemplate(refreshedTemplate.data.template);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
@@ -267,6 +285,12 @@ const Formulaire = () => {
       await formulaireInstance.post('/Template/AddDynamicColumn', null, {
         params: { columnName: newColumnName }
       });
+      await AuditService.logAction(
+        userId,
+        `Ajout d'une colonne dynamique: ${newColumnName}`,
+        'Create',
+        null
+      );
       // Optionally refresh dynamic columns
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
@@ -309,6 +333,12 @@ const Formulaire = () => {
 
       // Exécuter toutes les requêtes en parallèle
       await Promise.all(updatePromises);
+      await AuditService.logAction(
+        userId,
+        'Mise à jour des colonnes dynamiques',
+        'Update',
+        null
+      );
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setFormTemplate(refreshedTemplate.data.template);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
@@ -329,19 +359,19 @@ const Formulaire = () => {
       .then((canvas) => {
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'pt', 'a4'); // Portrait, points, A4
-  
+
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
         const imgWidth = pdfWidth;
         const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-  
+
         let heightLeft = imgHeight;
         let position = 0;
-  
+
         // Ajouter la première page
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pdfHeight;
-  
+
         // Ajouter des pages supplémentaires si nécessaire
         while (heightLeft > 0) {
           position = heightLeft - imgHeight;
@@ -349,8 +379,17 @@ const Formulaire = () => {
           pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
           heightLeft -= pdfHeight;
         }
-  
+
         pdf.save('formulaire_Cadre.pdf');
+        AuditService.logAction(
+          userId,
+          'Exportation du formulaire en PDF',
+          'Export',
+          null
+        ).catch((err) => {
+          console.error('Erreur lors de l\'enregistrement de l\'audit:', err);
+          setErrorMessage('Erreur lors de l\'enregistrement de l\'action d\'audit.');
+        });
       })
       .catch((err) => {
         console.error('Erreur lors de la génération du PDF', err);

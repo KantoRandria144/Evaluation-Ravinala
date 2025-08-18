@@ -1,4 +1,5 @@
 using EvaluationService.Models;
+using EvaluationService.Models.log;
 using Microsoft.EntityFrameworkCore;
 
 namespace EvaluationService.Data
@@ -44,9 +45,10 @@ namespace EvaluationService.Data
         public DbSet<UserEvaluationWeight> UserEvaluationWeights { get; set; }
         public DbSet<HistoryUserHelpContent> HistoryUserHelpContents { get; set; }
         public DbSet<HistoryUserindicatorFi> HistoryUserindicatorFis { get; set; }
-
+        
         public DbSet<Notification> Notifications { get; set; }
-
+        
+        public DbSet<AuditLog>  AuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

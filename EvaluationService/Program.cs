@@ -2,9 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using EvaluationService.Data;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json.Serialization;
+using EvaluationService.Service;
 using SendGrid;
 
 var builder = WebApplication.CreateBuilder(args);
+
+
+builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Ajouter SignalR
 builder.Services.AddSignalR();

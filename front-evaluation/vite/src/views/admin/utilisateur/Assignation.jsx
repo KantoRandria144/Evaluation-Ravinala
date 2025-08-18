@@ -6,6 +6,7 @@ import Popper from '@mui/material/Popper';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import { useParams } from 'react-router-dom';
+import AuditService from '../../../services/AuditService';
 
 // Custom Popper for dropdown style
 const CustomPopper = (props) => <Popper {...props} style={{ width: '500px' }} placement="bottom-start" />;
@@ -17,11 +18,21 @@ const Assignation = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const loggedUserId = user.id;
+
     // Fetch habilitations from the API
     const fetchHabilitations = async () => {
         try {
             const response = await authInstance.get('/Habilitation');
             setHabilitations(response.data);
+            await AuditService.logAction(
+              loggedUserId,
+              'Consulation des habilitations pour assignation à un utilisateur',
+              'Fetch',
+              null
+            );
+
         } catch (err) {
             console.error('Error fetching habilitations:', err);
             setErrorMessage("Erreur lors de la récupération des habilitations");
@@ -49,6 +60,12 @@ const Assignation = () => {
 
             setSuccessMessage(response.data);
             setErrorMessage('');
+            await AuditService.logAction(
+              loggedUserId,
+              'Assignation d\'habilitations à un utilisateur',
+              'Create',
+              `Utilisateur: ${userId}, Habilitations: ${habilitationIds.join(', ') || 'aucun'}`
+            );
         } catch (err) {
             console.error('Error assigning habilitations:', err);
             setErrorMessage(err.response?.data || 'Erreur lors de l\'assignation des habilitations');

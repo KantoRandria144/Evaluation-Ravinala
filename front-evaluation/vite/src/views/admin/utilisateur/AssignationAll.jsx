@@ -5,6 +5,7 @@ import { authInstance } from '../../../axiosConfig';
 import Popper from '@mui/material/Popper';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import AuditService from '../../../services/AuditService';
 
 const CustomPopper = (props) => (
     <Popper {...props} style={{ width: '450px' }} placement="bottom-start" />
@@ -17,10 +18,19 @@ const AssignationAll = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
     const fetchHabilitations = async () => {
         try {
             const response = await authInstance.get('/Habilitation');
             setHabilitations(response.data);
+            await AuditService.logAction(
+              userId,
+              'Consultation des habilitations pour assignation massive',
+              'Fetch',
+              null
+            );
+
         } catch (err) {
             setErrorMessage(err.response?.data || 'Error fetching habilitations');
         }
@@ -30,6 +40,13 @@ const AssignationAll = () => {
         try {
             const response = await authInstance.get('/User/user');
             setUsers(response.data);
+            await AuditService.logAction(
+              userId,
+              'Consultation des utilisateurs pour assignation massive',
+              'Fetch',
+              null
+            );
+
         } catch (err) {
             setErrorMessage(err.response?.data || 'Error fetching users');
         }
@@ -60,6 +77,14 @@ const AssignationAll = () => {
             });
             setSuccessMessage(response.data);  // Display success message directly from backend
             setErrorMessage('');
+
+          await AuditService.logAction(
+            userId,
+            'Assignation d\'habilitations à plusieurs utilisateurs',
+            'Create',
+            `Utilisateurs: ${userIds.join(', ') || 'aucun'}, Habilitations: ${habilitationIds.join(', ') || 'aucun'}`
+          );
+
         } catch (error) {
             setErrorMessage(error.response?.data || 'Unknown error occurred');
             setSuccessMessage('');

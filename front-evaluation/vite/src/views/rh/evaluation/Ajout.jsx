@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { formulaireInstance } from '../../../axiosConfig';
 import { useNavigate } from 'react-router-dom';
+import AuditService from '../../../services/AuditService';
 
 const Ajout = () => {
   const [isDataUpdated, setIsDataUpdated] = useState(false);
@@ -150,6 +151,12 @@ const Ajout = () => {
       const response = await formulaireInstance.post(`/Periode?userId=${userId}`, formData);
 
       if (response.data.success) {
+        await AuditService.logAction(
+          userId,
+          'Ajout d\'une nouvelle période d\'évaluation',
+          'Create',
+          null
+        );
         setBackendErrors([]);
         setIsDataUpdated(true);
 

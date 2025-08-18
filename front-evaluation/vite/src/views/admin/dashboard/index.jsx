@@ -19,6 +19,7 @@ import { gridSpacing } from 'store/constant';
 // assets
 import StorefrontTwoToneIcon from '@mui/icons-material/StorefrontTwoTone';
 import ResultSummaryNonCadre from './ResultSummaryNonCadre';
+import AuditService from '../../../services/AuditService';
 
 // ==============================|| DEFAULT DASHBOARD ||============================== //
 
@@ -26,6 +27,23 @@ const Dashboard = () => {
   const [isLoading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Audit logging
+    const logAuditAction = async () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const userId = user.id;
+        await AuditService.logAction(
+          userId,
+          'Consultation du tableau de bord des statistiques des collaborateurs',
+          'Users',
+          null
+        );
+      } catch (error) {
+        console.error('Error logging audit action:', error);
+      }
+    };
+
+    logAuditAction();
     setLoading(false);
   }, []);
 

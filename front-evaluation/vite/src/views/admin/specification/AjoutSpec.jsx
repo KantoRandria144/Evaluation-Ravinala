@@ -7,6 +7,7 @@ import { Select, MenuItem, Button } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { authInstance } from '../../../axiosConfig';
 import Alert from '@mui/material/Alert';
+import AuditService from '../../../services/AuditService';
 
 const AjoutSpec = () => {
     const [formData, setFormData] = useState({ name: '', sectionId: '' });
@@ -14,10 +15,19 @@ const AjoutSpec = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const navigate = useNavigate();
 
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
+
     useEffect(() => {
         const fetchSections = async () => {
             try {
                 const response = await authInstance.get('/Habilitation/section');
+                await AuditService.logAction(
+                  userId,
+                  'Récupération des sections pour ajout de spécification',
+                  'Fetch',
+                  null
+                );
                 setSections(response.data); // Stocker les sections récupérées
             } catch (error) {
                 console.error('Erreur lors de la récupération des sections:', error);
@@ -42,8 +52,13 @@ const AjoutSpec = () => {
                 name: formData.name,
                 sectionId: formData.sectionId,
             });
-    
             if (response.status === 200) {
+                await AuditService.logAction(
+                  userId,
+                  'Ajout d\'une nouvelle spécification',
+                  'Create',
+                  null
+                );
                 navigate('/Specification/listeSpec');
             }
         } catch (error) {

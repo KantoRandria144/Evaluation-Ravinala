@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formulaireInstance } from '../../../axiosConfig';
 import { Grid, Typography, Button, Box, Alert, TextField, Checkbox, FormControlLabel } from '@mui/material';
+import AuditService from '../../../services/AuditService';
 
 function RenitialisationCadre() {
   const [annee, setAnnee] = useState(new Date().getFullYear());
@@ -15,6 +16,8 @@ function RenitialisationCadre() {
     miParcours: false,
     finale: false
   });
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
 
   useEffect(() => {
     setMessage('');
@@ -29,6 +32,12 @@ function RenitialisationCadre() {
   const handleCheckImportStatus = async () => {
     try {
       const res = await formulaireInstance.get(`/Import/import-status?annee=${annee}`);
+      await AuditService.logAction(
+        userId,
+        'Vérification du statut d\'importation des cadres',
+        'Import',
+        null
+      );
       setImportStatus(res.data);
     } catch (error) {
       console.error("Erreur lors de la récupération du statut d'importation.");
@@ -63,6 +72,12 @@ function RenitialisationCadre() {
         annee,
         ...selectedCadres
       });
+      await AuditService.logAction(
+        userId,
+        'Réinitialisation des cadres',
+        'Import',
+        null
+      );
 
       if (response.status === 200) {
         setMessage('Cadres réinitialisés avec succès.');

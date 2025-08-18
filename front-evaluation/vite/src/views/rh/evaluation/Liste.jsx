@@ -27,6 +27,7 @@ import { faEdit } from '@fortawesome/free-solid-svg-icons';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import { useNavigate } from 'react-router-dom';
 import MainCard from 'ui-component/cards/MainCard';
+import AuditService from '../../../services/AuditService';
 
 const Liste = ({ isDataUpdated }) => {
   const creer = 1;
@@ -58,7 +59,8 @@ const Liste = ({ isDataUpdated }) => {
   const HABILITATION_EDIT = 13;
 
   const navigate = useNavigate();
-
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
   // Vérifier les habilitations
   const checkPermissions = async () => {
     try {
@@ -86,6 +88,12 @@ const Liste = ({ isDataUpdated }) => {
     try {
       const response = await formulaireInstance.get('/Periode/AllEvaluation');
       setEvaluations(response.data);
+      await AuditService.logAction(
+        userId,
+        'Consultation de la liste des périodes d\'évaluation',
+        'Fetch',
+        null
+      );
     } catch (err) {
       const errorData = err.response?.data;
       setError(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : 'Erreur lors de la récupération des évaluations.');

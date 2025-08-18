@@ -30,6 +30,8 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { authInstance } from "axiosConfig";
 import { useNavigate } from 'react-router-dom';
 
+import AuditService from '../../../../services/AuditService';
+
 // ============================|| FIREBASE - LOGIN ||============================ //
 
 const AuthLogin = ({ ...others }) => {
@@ -54,9 +56,17 @@ const AuthLogin = ({ ...others }) => {
             password: values.password,
         });
 
-        if (response.data.token) {
+      if (response.data.token) {
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.user));
+
+            await AuditService.logAction(
+              response.data.user.id,
+              'Authentification réussie',
+              'Users',
+              response.data.user.id
+            );
+
             navigate('/dashboard/default');
             
         } else {

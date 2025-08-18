@@ -28,6 +28,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import MainCard from 'ui-component/cards/MainCard';
+import AuditService from '../../../services/AuditService';
 
 const ListeSpec = () => {
   const [specs, setSpecs] = useState([]);
@@ -37,9 +38,17 @@ const ListeSpec = () => {
   const [deleteId, setDeleteId] = useState(null);
   const navigate = useNavigate();
 
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
   const fetchSpecs = async () => {
     try {
       const response = await authInstance.get('/Habilitation/admins');
+      await AuditService.logAction(
+        userId,
+        'Consultation de la liste des spécifications',
+        'Fetch',
+        null
+      );
       setSpecs(response.data);
     } catch (err) {
       console.error('Erreur lors de la récupération des spécifications', err);
@@ -63,10 +72,22 @@ const ListeSpec = () => {
   }, [specs]);
 
   const handleAddClick = () => {
+    AuditService.logAction(
+      userId,
+      'Navigation vers la page d\'ajout de spécification',
+      'Navigate',
+      null
+    );
     navigate('/specification/AjoutSpec');
   };
 
   const handleEditClick = (id) => {
+    AuditService.logAction(
+      userId,
+      'Navigation vers la page de modification de spécification',
+      'Navigate',
+      id
+    );
     navigate(`/specification/editSpec/${id}`);
   };
 
@@ -79,7 +100,14 @@ const ListeSpec = () => {
     if (deleteId !== null) {
       try {
         await authInstance.delete(`/Habilitation/admins/${deleteId}`);
+        await AuditService.logAction(
+          userId,
+          'Suppression d\'une spécification',
+          'Delete',
+          deleteId
+        );
         setSpecs(specs.filter((spec) => spec.id !== deleteId));
+
       } catch (err) {
         console.error('Erreur lors de la suppression de la spécification', err);
       } finally {

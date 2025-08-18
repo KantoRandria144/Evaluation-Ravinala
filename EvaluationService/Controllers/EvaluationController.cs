@@ -5,6 +5,7 @@ using CommonModels.DTOs;
 using EvaluationService.Data;
 using EvaluationService.DTOs;
 using EvaluationService.Models;
+using EvaluationService.Service;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -25,14 +26,17 @@ namespace EvaluationService.Controllers
         private readonly ISendGridClient _sendGridClient;
         private readonly string _fromEmail;
         private readonly string _fromName;
+        private readonly IAuditService _auditService;
 
-        public EvaluationController(AppdbContext context, IHttpClientFactory httpClientFactory, ILogger<EvaluationController> logger, IHubContext<NotificationHub> hubContext, ISendGridClient sendGridClient, IConfiguration configuration)
+
+        public EvaluationController(AppdbContext context, IHttpClientFactory httpClientFactory, ILogger<EvaluationController> logger, IHubContext<NotificationHub> hubContext, ISendGridClient sendGridClient, IConfiguration configuration, IAuditService auditService)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _hubContext = hubContext;
             _sendGridClient = sendGridClient;
+            _auditService = auditService;
             _fromEmail = configuration["SendGrid:FromEmail"];
             _fromName = configuration["SendGrid:FromName"];
         }
@@ -45,6 +49,7 @@ namespace EvaluationService.Controllers
             {
                 return NotFound(new { Message = "Évaluation non trouvée." });
             }
+            
             return Ok(evaluation);
         }
 

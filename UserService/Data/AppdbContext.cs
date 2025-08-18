@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using UserService.Models;
+using UserService.Models.log;
 
 namespace UserService.Data
 {
@@ -11,6 +12,8 @@ namespace UserService.Data
         public DbSet<Habilitation> Habilitations { get; set; }
         public DbSet<HabilitationAdmin> HabilitationAdmins { get; set; }
         public DbSet<Section> Sections { get; set; }
+        
+        public DbSet<AuditLog>  AuditLogs { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

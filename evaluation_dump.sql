@@ -484,6 +484,16 @@ CREATE  TABLE UserIndicatorResults (
  );
 GO
 
+CREATE TABLE AuditLogs (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    UserId NVARCHAR(255) NOT NULL,
+    Action NVARCHAR(100) NOT NULL,   
+    TableName NVARCHAR(255) NULL,   
+    RecordId NVARCHAR(100) NULL,    
+    Timestamp DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+Go
+
 CREATE NONCLUSTERED INDEX IX_UserIndicatorResults_UserIndicatorId ON UserIndicatorResults ( UserIndicatorId  asc );
 GO
 

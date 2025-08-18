@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using UserService.Data;
 using UserService.DTOs;
 using System.DirectoryServices.AccountManagement;
+using UserService.Service;
 
 namespace UserService.Controllers
 {
@@ -23,17 +24,20 @@ namespace UserService.Controllers
 
         private readonly AppdbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IAuditService  _auditService;
 
-        public LoginController(AppdbContext context, IConfiguration configuration)
+        public LoginController(AppdbContext context, IConfiguration configuration, IAuditService auditService)
         {
             _context = context;
             _configuration = configuration;
+            _auditService = auditService;
         }
 
         [HttpPost]
         public async Task<IActionResult> Login([FromBody] LoginModel login)
         {
             var result = await ValidateUser(login.Username, login.Password);
+            
             if (result.Type == "success")
             {
 

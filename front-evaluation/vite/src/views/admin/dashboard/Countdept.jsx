@@ -20,7 +20,6 @@ import { gridSpacing } from 'store/constant';
 import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import KeyboardArrowUpOutlinedIcon from '@mui/icons-material/KeyboardArrowUpOutlined';
 import KeyboardArrowDownOutlinedIcon from '@mui/icons-material/KeyboardArrowDownOutlined';
-
 const PopularCard = ({ isLoading }) => {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);

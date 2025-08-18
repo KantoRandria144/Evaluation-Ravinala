@@ -25,8 +25,7 @@ import { LocalizationProvider, DesktopDatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import * as XLSX from 'xlsx'; // Importation de la bibliothèque xlsx
 import jsPDF from 'jspdf'; // Importation de la bibliothèque jsPDF
-import 'jspdf-autotable'; // Importation de jsPDF-AutoTable
-
+import 'jspdf-autotable';
 const ResultSummaryNonCadre = () => {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(new Date(`${currentYear - 1}-01-01`));
@@ -40,7 +39,6 @@ const ResultSummaryNonCadre = () => {
   // États pour le menu de téléchargement
   const [anchorEl, setAnchorEl] = useState(null);
   const openMenu = Boolean(anchorEl);
-
   const fetchScores = async (year) => {
     setLoading(true);
     setError(null);
@@ -48,6 +46,7 @@ const ResultSummaryNonCadre = () => {
 
     try {
       const response = await formulaireInstance.get(`/Stat/getFinaleScoreNonCadreYear/${year}`);
+
       setScores(response.data);
     } catch (err) {
       if (err.response) {
