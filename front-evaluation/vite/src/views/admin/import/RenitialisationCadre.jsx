@@ -10,6 +10,7 @@ import {
     Checkbox,
     FormControlLabel
 } from '@mui/material';
+import AuditService from '../../../services/AuditService';
 
 function ReinitialisationCadre() {
     const [annee, setAnnee] = useState(new Date().getFullYear());
@@ -25,6 +26,9 @@ function ReinitialisationCadre() {
         miParcours: false,
         finale: false
     });
+
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
 
     useEffect(() => {
         if (annee) {
@@ -85,6 +89,18 @@ function ReinitialisationCadre() {
                 annee,
                 ...selectedCadres
             });
+
+            await AuditService.logAction(
+                userId,
+                'Réinitialisation des fichiers cadres',
+                'Reset',
+                null,
+                null,
+                {
+                    annee,
+                    selectedCadres
+                }
+            );
 
             if (response.status === 200) {
                 setMessage('Cadres réinitialisés avec succès.');
@@ -164,9 +180,7 @@ function ReinitialisationCadre() {
                         { key: 'evaluation', label: "Période d'évaluation" },
                         { key: 'fixation', label: "Fixation des objectifs" },
                         { key: 'miParcours', label: "Mi-parcours" },
-                        {
-
- key: 'finale', label: "Évaluation finale" }
+                        { key: 'finale', label: "Évaluation finale" }
                     ].map(({ key, label }) => (
                         <Grid item xs={12} sm={6} key={key}>
                             <FormControlLabel

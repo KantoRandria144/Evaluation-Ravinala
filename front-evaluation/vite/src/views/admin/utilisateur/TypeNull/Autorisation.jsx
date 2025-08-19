@@ -23,12 +23,7 @@ const Autorisation = () => {
         try {
             const response = await authInstance.get('/User/users-with-null-type');
             setUsers(response.data);
-            await AuditService.logAction(
-              userId,
-              'Consultation des utilisateurs pour assignation',
-              'Fetch',
-              null
-            );
+            
         } catch (err) {
             const errorData = err.response?.data;
             setErrorMessage(
@@ -64,10 +59,12 @@ const Autorisation = () => {
             setSuccessMessage(response.data);
             setErrorMessage('');
             await AuditService.logAction(
-              userId,
-              'Mise à jour du type d\'utilisateurs',
-              'Update',
-              null
+                userId,
+                'Mise à jour du type d\'utilisateurs',
+                'Update',
+                null,
+                formData.users.map(user => ({ userId: user.id, oldType: null })),
+                { userIds, newType: formData.typeUser }
             );
         } catch (error) {
             const errorData = error.response?.data;

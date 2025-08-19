@@ -91,12 +91,6 @@ const ListeUtilisateur = () => {
       );
       setCanEditUser(editUserResponse.data.hasAccess);
 
-      await AuditService.logAction(
-        userId,
-        'Vérification des autorisations pour assignation et mise à jour des utilisateurs',
-        'Check',
-        `Habilitations Admin ID: ${ASSIGN_HABILITATION}, ${UPADATE_USER}`
-      );
     } catch (error) {
       console.error('Erreur lors de la vérification des autorisations :', error);
     }
@@ -129,12 +123,12 @@ const ListeUtilisateur = () => {
       }));
       setEmployees(mappedEmployees);
 
-      await AuditService.logAction(
-        userId,
-        'Consultation de la liste initiale des utilisateurs',
-        'Fetch',
-        null
-      );
+      // await AuditService.logAction(
+      //   userId,
+      //   'Consultation de la liste initiale des utilisateurs',
+      //   'Fetch',
+      //   null
+      // );
 
     } catch (error) {
       console.error('Error fetching initial users:', error);
@@ -153,15 +147,16 @@ const ListeUtilisateur = () => {
           m: matricule || undefined
         }
       });
+
       setEmployees(response.data);
       setCurrentPage(1); // Reset la pagination à la page 1 après filtrage
 
-      await AuditService.logAction(
-        userId,
-        'Consultation des utilisateurs avec filtres',
-        'Fetch',
-        `Nom ou Email: ${nameOrMail || 'aucun'}, Département: ${department || 'aucun'}, Type: ${typeUser || 'aucun'}, Matricule: ${matricule || 'aucun'}`
-      );
+      // await AuditService.logAction(
+      //   userId,
+      //   'Consultation des utilisateurs avec filtres',
+      //   'Fetch',
+      //   `Nom ou Email: ${nameOrMail || 'aucun'}, Département: ${department || 'aucun'}, Type: ${typeUser || 'aucun'}, Matricule: ${matricule || 'aucun'}`
+      // );
 
     } catch (error) {
       console.error('Error fetching filtered users:', error);
@@ -210,12 +205,12 @@ const ListeUtilisateur = () => {
 
   // Assignation d'habilitations
   const handleAddClick = (userId) => {
-    AuditService.logAction(
-      userId,
-      'Navigation vers la page d\'assignation d\'habilitations pour un utilisateur',
-      'Navigate',
-      `Utilisateur ID: ${userId}`
-    );
+    // AuditService.logAction(
+    //   userId,
+    //   'Navigation vers la page d\'assignation d\'habilitations pour un utilisateur',
+    //   'Navigate',
+    //   `Utilisateur ID: ${userId}`
+    // );
 
     navigate(`/utilisateur/assignation/${userId}`); // Navigation avec userId
   };
@@ -227,42 +222,44 @@ const ListeUtilisateur = () => {
   };
 
   const confirmRemoveHabilitation = async () => {
-    const { userId, habilitationId } = habilitationToDelete;
-    try {
-      const dto = {
-        UserIds: [userId],
-        HabilitationIds: [habilitationId]
-      };
+      const { userId, habilitationId, label } = habilitationToDelete;
+      try {
+        const dto = {
+          UserIds: [userId],
+          HabilitationIds: [habilitationId]
+        };
 
-      await authInstance.post('/User/remove-habilitations', dto);
+        const response = await authInstance.post('/User/remove-habilitations', dto);
 
-      setEmployees((prevEmployees) =>
-        prevEmployees.map((employee) => {
-          if (employee.id === userId) {
-            return {
-              ...employee,
-              habilitations: employee.habilitations.filter((h) => h.id !== habilitationId)
-            };
-          }
-          return employee;
-        })
-      );
+        setEmployees((prevEmployees) =>
+          prevEmployees.map((employee) => {
+            if (employee.id === userId) {
+              return {
+                ...employee,
+                habilitations: employee.habilitations.filter((h) => h.id !== habilitationId)
+              };
+            }
+            return employee;
+          })
+        );
 
-      setSnackbar({ open: true, message: 'Habilitation supprimée avec succès.', severity: 'success' });
-      await AuditService.logAction(
-        userId,
-        'Suppression d\'une habilitation pour un utilisateur',
-        'Delete',
-        `Utilisateur: ${userId}, Habilitation: ${habilitationId}, Label: ${label}`
-      );
-    } catch (error) {
-      console.error('Erreur lors de la suppression des habilitations:', error);
-      const errorMessage = error.response?.data || 'Erreur lors de la suppression des habilitations.';
-      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
-    } finally {
-      setOpenDialog(false);
-      setHabilitationToDelete({ userId: null, habilitationId: null, label: '' });
-    }
+        setSnackbar({ open: true, message: 'Habilitation supprimée avec succès.', severity: 'success' });
+        await AuditService.logAction(
+          userId,
+          'Suppression d\'une habilitation pour un utilisateur',
+          'Delete',
+          null,
+          null,
+          { userId, habilitationId, label }
+        );
+      } catch (error) {
+        console.error('Erreur lors de la suppression des habilitations:', error);
+        const errorMessage = error.response?.data || 'Erreur lors de la suppression des habilitations.';
+        setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+      } finally {
+        setOpenDialog(false);
+        setHabilitationToDelete({ userId: null, habilitationId: null, label: '' });
+      }
   };
 
   const cancelRemoveHabilitation = () => {
@@ -275,9 +272,15 @@ const ListeUtilisateur = () => {
     setIsSyncing(true);
     try {
       const response = await authInstance.post(`/User/Actualize`);
+      const syncResult = {
+        added: response.data.added,
+        updated: response.data.updated,
+        deleted: response.data.deleted
+      };
+      
       setSnackbar({
         open: true,
-        message: `Synchronisation réussie! Ajoutés: ${response.data.Added}, Mis à jour: ${response.data.Updated}, Supprimés: ${response.data.Deleted}`,
+        message: `Synchronisation réussie! Ajoutés: ${response.data.added}, Mis à jour: ${response.data.updated}, Supprimés: ${response.data.deleted}`,
         severity: 'success'
       });
       // Rafraîchir la liste
@@ -287,7 +290,9 @@ const ListeUtilisateur = () => {
         userId,
         'Synchronisation des utilisateurs',
         'Sync',
-        `Ajoutés: ${response.data.Added}, Mis à jour: ${response.data.Updated}, Supprimés: ${response.data.Deleted}`
+        null,
+        null,
+        syncResult
       );
 
     } catch (error) {
@@ -330,7 +335,7 @@ const ListeUtilisateur = () => {
 
       setSnackbar({
         open: true,
-        message: response.data, // ex: "Les types d'utilisateur ont été mis à jour avec succès."
+        message: response.data,
         severity: 'success'
       });
 
@@ -346,11 +351,14 @@ const ListeUtilisateur = () => {
         )
       );
 
+      // Log audit with old and new values
       await AuditService.logAction(
         userId,
         'Mise à jour du type d\'utilisateur',
-        'Update',
-        `Utilisateur: ${selectedUser.id}, Nouveau Type: ${newTypeUser === 0 ? 'Cadre' : newTypeUser === 1 ? 'NonCadre' : 'aucun'}`
+        'Users',
+        selectedUser.id, // Removed quotes around selectedUser.id
+        { typeUser: selectedUser.typeUser },
+        { typeUser: newTypeUser === 0 ? 'Cadre' : newTypeUser === 1 ? 'NonCadre' : 'aucun' }
       );
 
       setOpenEditDialog(false);
@@ -365,7 +373,6 @@ const ListeUtilisateur = () => {
       });
     }
   };
-
   // Fonction de comparaison pour le tri décroissant
   const descendingComparator = (a, b, orderBy) => {
     if (b[orderBy].toLowerCase() < a[orderBy].toLowerCase()) {

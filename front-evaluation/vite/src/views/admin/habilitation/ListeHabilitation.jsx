@@ -58,12 +58,12 @@ const ListeHabilitation = () => {
   const fetchHabilitations = async () => {
     try {
       const response = await authInstance.get('/Habilitation');
-      await AuditService.logAction(
-        userId,
-        'Consultation de la liste des habilitations',
-        'Habilitation',
-        null
-      );
+      // await AuditService.logAction(
+      //   userId,
+      //   'Consultation de la liste des habilitations',
+      //   'Habilitation',
+      //   null
+      // );
       setHabilitations(response.data);
     } catch (err) {
       console.error('Erreur lors de la récupération des habilitations');
@@ -73,12 +73,7 @@ const ListeHabilitation = () => {
   const fetchAdmins = async () => {
     try {
       const response = await authInstance.get('/Habilitation/admins');
-      await AuditService.logAction(
-        userId,
-        'Consultation de la liste des administrateurs pour habilitations',
-        'Habilitation',
-        null
-      );
+    
       setAvailableAdmins(response.data);
     } catch (err) {
       console.error('Erreur lors de la récupération des administrateurs');
@@ -88,8 +83,7 @@ const ListeHabilitation = () => {
   const checkPermissions = async () => {
     console.log('checkPermissions called');
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const userId = user.id;
+      
       console.log(userId);
 
       // Vérification pour "Ajouter"
@@ -97,13 +91,6 @@ const ListeHabilitation = () => {
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${HABILITATION_ADD}`
       );
       setCanAdd(addResponse.data.hasAccess);
-
-      await AuditService.logAction(
-        userId,
-        'Vérification des autorisations d\'habilitation',
-        'Habilitation',
-        null
-      );
 
       // Vérification pour "Éditer"
       const editResponse = await formulaireInstance.get(
@@ -203,15 +190,39 @@ const ListeHabilitation = () => {
       removedHabilitationAdmins: editData.removedHabilitationAdmins.map((id) => ({ id })) // Suppression sous forme { id: ... }
     };
 
+    const oldValues = {
+      label: selectedHabilitation.label,
+      habilitationAdmins: selectedHabilitation.habilitationAdmins.map((a) => ({ id: a.id, name: a.name }))
+    };
+
+    const newValues = {
+      label: editData.label,
+      habilitationAdmins: [
+        // Admins initiaux moins ceux retirés
+        ...selectedHabilitation.habilitationAdmins
+          .filter((a) => !editData.removedHabilitationAdmins.includes(a.id))
+          .map((a) => ({ id: a.id, name: a.name })),
+
+        // Admins ajoutés
+        ...availableAdmins
+          .filter((a) => editData.addedHabilitationAdmins.includes(a.id))
+          .map((a) => ({ id: a.id, name: a.name }))
+      ]
+    };
+
     try {
       console.log('Payload envoyé :', payload); // Vérifier le payload avant l'envoi
       await authInstance.put(`/Habilitation/editHabilitation/${selectedHabilitation.id}`, payload);
+
       await AuditService.logAction(
         userId,
-        'Modification d\'une habilitation',
-        'Habilitation',
-        null
+        "Modification d'une habilitation",
+        "Habilitation",
+        selectedHabilitation.id,
+        oldValues,
+        newValues
       );
+
       fetchHabilitations(); // Rafraîchit la liste des habilitations
       setEditModalOpen(false); // Ferme la modale
     } catch (err) {

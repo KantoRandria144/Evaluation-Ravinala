@@ -31,6 +31,7 @@ import { useNavigate } from 'react-router-dom';
 import CollabMp from './CollabMp';
 import CollabFi from './CollabFi';
 import HelpIcon from '@mui/icons-material/Help';
+import AuditService from '../../../../services/AuditService';
 
 function CollabFo() {
   const user = JSON.parse(localStorage.getItem('user'));
@@ -357,85 +358,74 @@ function CollabFo() {
   const steps = template.templateStrategicPriorities.map((priority) => priority.name);
 
   const validateUserObjectives = async () => {
-    try {
-      // Validate total weightings for all priorities
-      for (const priority of template.templateStrategicPriorities) {
-        const totalWeighting = calculateTotalWeighting(priority);
-        if (totalWeighting > 100) {
-          setErrorMessage(`La somme des pondérations pour "${priority.name}" ne peut pas dépasser 100%. Actuel: ${totalWeighting}%`);
-          setOpenSnackbar(true);
-          return;
-        }
-      }
-
-      const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
-        (priority.objectives || []).map((objective) => ({
-          priorityId: priority.templatePriorityId,
-          priorityName: priority.name,
-          description: objective.description || '',
-          weighting: parseFloat(objective.weighting) || 0,
-          resultIndicator: objective.resultIndicator || '',
-          result: parseFloat(objective.result) || 0,
-          dynamicColumns:
-            objective.dynamicColumns?.map((col) => ({
-              columnName: col.columnName,
-              value: col.value
-            })) || []
-        }))
-      );
-
-      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
-        setErrorMessage('Veuillez remplir au moins un objectif avec tous les champs requis.');
+  try {
+    // Validate total weightings for all priorities
+    for (const priority of template.templateStrategicPriorities) {
+      const totalWeighting = calculateTotalWeighting(priority);
+      if (totalWeighting > 100) {
+        setErrorMessage(`La somme des pondérations pour "${priority.name}" ne peut pas dépasser 100%. Actuel: ${totalWeighting}%`);
         setOpenSnackbar(true);
         return;
       }
+    }
 
-      const hasSignature = await checkUserSignature(userId);
+    const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
+      (priority.objectives || []).map((objective) => ({
+        priorityId: priority.templatePriorityId,
+        priorityName: priority.name,
+        description: objective.description || '',
+        weighting: parseFloat(objective.weighting) || 0,
+        resultIndicator: objective.resultIndicator || '',
+        result: parseFloat(objective.result) || 0,
+        dynamicColumns:
+          objective.dynamicColumns?.map((col) => ({
+            columnName: col.columnName,
+            value: col.value
+          })) || []
+      }))
+    );
 
-      if (hasSignature && signatureFile) {
-        const fileReader = new FileReader();
-        fileReader.onloadend = async () => {
-          const base64String = fileReader.result;
-          const imageBase64 = base64String.split(',')[1];
+    if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
+      setErrorMessage('Veuillez remplir au moins un objectif avec tous les champs requis.');
+      setOpenSnackbar(true);
+      return;
+    }
 
-          try {
-            const compareResponse = await authInstance.post(
-              `/Signature/compare-user-signature/${userId}`,
-              { imageBase64 },
-              { headers: { 'Content-Type': 'application/json' } }
-            );
+    const hasSignature = await checkUserSignature(userId);
 
-            if (!compareResponse.data.isMatch) {
-              setErrorMessage('Votre signature ne correspond pas à celle enregistrée. Veuillez réessayer.');
-              setOpenSnackbar(true);
-              handleOpenSignatureModal();
-              return;
-            }
+    if (hasSignature && signatureFile) {
+      const fileReader = new FileReader();
+      fileReader.onloadend = async () => {
+        const base64String = fileReader.result;
+        const imageBase64 = base64String.split(',')[1];
 
-            const response = await formulaireInstance.post('/Evaluation/validateUserObjectives', objectivesData, {
-              params: { userId, type: userType }
-            });
-
-            alert(response.data.message || 'Objectifs validés avec succès !');
-            window.location.reload();
-          } catch (error) {
-            setErrorMessage(error.response?.data?.message || 'Une erreur est survenue lors de la validation.');
-            setOpenSnackbar(true);
-            console.error('Erreur lors de la validation des objectifs :', error);
-          }
-        };
-
-        fileReader.onerror = () => {
-          setErrorMessage('Impossible de lire le fichier de signature. Veuillez réessayer.');
-          setOpenSnackbar(true);
-        };
-
-        fileReader.readAsDataURL(signatureFile);
-      } else {
         try {
+          const compareResponse = await authInstance.post(
+            `/Signature/compare-user-signature/${userId}`,
+            { imageBase64 },
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+
+          if (!compareResponse.data.isMatch) {
+            setErrorMessage('Votre signature ne correspond pas à celle enregistrée. Veuillez réessayer.');
+            setOpenSnackbar(true);
+            handleOpenSignatureModal();
+            return;
+          }
+
           const response = await formulaireInstance.post('/Evaluation/validateUserObjectives', objectivesData, {
             params: { userId, type: userType }
           });
+
+          // Add audit logging
+          await AuditService.logAction(
+            userId,
+            `Validation des objectifs pour l'évaluation avec evalId: ${evalId}`,
+            'Create',
+            null,
+            null,
+            { objectives: objectivesData }
+          );
 
           alert(response.data.message || 'Objectifs validés avec succès !');
           window.location.reload();
@@ -444,16 +434,44 @@ function CollabFo() {
           setOpenSnackbar(true);
           console.error('Erreur lors de la validation des objectifs :', error);
         }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la validation des objectifs :', error);
-      setErrorMessage('Une erreur imprévue est survenue.');
-      setOpenSnackbar(true);
+      };
+
+      fileReader.onerror = () => {
+        setErrorMessage('Impossible de lire le fichier de signature. Veuillez réessayer.');
+        setOpenSnackbar(true);
+      };
+
+      fileReader.readAsDataURL(signatureFile);
+    } else {
+      const response = await formulaireInstance.post('/Evaluation/validateUserObjectives', objectivesData, {
+        params: { userId, type: userType }
+      });
+
+      // Add audit logging
+      await AuditService.logAction(
+        userId,
+        `Validation des objectifs pour l'évaluation avec evalId: ${evalId}`,
+        'Create',
+        null,
+        null,
+        { objectives: objectivesData }
+      );
+
+      alert(response.data.message || 'Objectifs validés avec succès !');
+      window.location.reload();
     }
-  };
+  } catch (error) {
+    console.error('Erreur lors de la validation des objectifs :', error);
+    setErrorMessage('Une erreur imprévue est survenue.');
+    setOpenSnackbar(true);
+  }
+};
 
   const updateUserObjectives = async () => {
     try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const userId = user.id;
+
       // Validate total weightings for all priorities
       for (const priority of template.templateStrategicPriorities) {
         const totalWeighting = calculateTotalWeighting(priority);
@@ -463,6 +481,28 @@ function CollabFo() {
           return;
         }
       }
+
+      // Fetch current objectives for oldValues
+      const currentObjectives = await fetchUserObjectives(evalId, userId);
+      const oldValues = currentObjectives
+        ? currentObjectives.map((objective) => ({
+            objectiveId: objective.objectiveId,
+            description: objective.description || '',
+            weighting: parseFloat(objective.weighting) || 0,
+            resultIndicator: objective.resultIndicator || '',
+            result: parseFloat(objective.result) || 0,
+            templateStrategicPriority: {
+              templatePriorityId: objective.templateStrategicPriority?.templatePriorityId || null,
+              name: objective.templateStrategicPriority?.name || '',
+              maxObjectives: objective.templateStrategicPriority?.maxObjectives || 0
+            },
+            objectiveColumnValues:
+              objective.objectiveColumnValues?.map((col) => ({
+                columnName: col.columnName,
+                value: col.value || ''
+              })) || []
+          }))
+        : null;
 
       const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
         (priority.objectives || []).map((objective) => ({
@@ -514,6 +554,16 @@ function CollabFo() {
         params: { evalId, userId }
       });
 
+      // Add audit logging
+      await AuditService.logAction(
+        userId,
+        `Mise à jour des objectifs pour l'évaluation avec evalId: ${evalId}`,
+        'Update',
+        null,
+        { objectives: oldValues },
+        { objectives: objectivesData }
+      );
+
       alert(response.data.Message || 'Objectifs mis à jour avec succès !');
       window.location.reload();
     } catch (error) {
@@ -522,7 +572,6 @@ function CollabFo() {
       setOpenSnackbar(true);
     }
   };
-
   const handleNext = () => {
     if (validateStep()) {
       setActiveStep((prevActiveStep) => prevActiveStep + 1);

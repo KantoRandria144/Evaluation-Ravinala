@@ -114,12 +114,11 @@ const ImportNonCadre = () => {
         if (helpFile) formData.append('HelpFile', helpFile);
         if (userHelpContentFile) formData.append('UserHelpContentFile', userHelpContentFile);
 
-        if (!formData.has('EvaluationFile') && !formData.has('FixationFile') && !formData.has('MiParcoursIndicatorsFile') && !formData.has('MiParcoursCompetenceFile') && !formData.has('FinaleFile') && !formData.has('HelpFile')&& !formData.has('UserHelpContentFile')) {
+        if (!formData.has('EvaluationFile') && !formData.has('FixationFile') && !formData.has('MiParcoursIndicatorsFile') && !formData.has('MiParcoursCompetenceFile') && !formData.has('FinaleFile') && !formData.has('HelpFile') && !formData.has('UserHelpContentFile')) {
             setMessage('Veuillez importer au moins un fichier obligatoire.');
             setSeverity('error');
             return;
         }
-        
 
         setIsSubmitting(true);
         setMessage('');
@@ -133,7 +132,20 @@ const ImportNonCadre = () => {
                 userId,
                 'Importation des fichiers d\'évaluation non-cadres',
                 'Import',
-                null
+                null,
+                null,
+                {
+                    annee,
+                    files: {
+                        evaluation: evaluationFile?.name || null,
+                        fixation: fixationFile?.name || null,
+                        miParcoursIndicators: miParcoursIndicatorsFile?.name || null,
+                        miParcoursCompetence: miParcoursCompetenceFile?.name || null,
+                        finale: finaleFile?.name || null,
+                        help: helpFile?.name || null,
+                        userHelpContent: userHelpContentFile?.name || null
+                    },
+                }
             );
 
             if (response.status === 200) {
@@ -156,7 +168,6 @@ const ImportNonCadre = () => {
                 } else {
                     errorMsg = JSON.stringify(error.response.data);
                 }
-                // setErrorDetails(error.response.data);
             } else if (error.message) {
                 errorMsg = error.message;
             }

@@ -182,25 +182,27 @@ const Formulaire = () => {
     setIsModalOpen(false);
   };
 
-  const handleSaveTemplateName = async () => {
+const handleSaveTemplateName = async () => {
     try {
-      setIsEditIconVisible(false);
-      setIsEditing(false);
-      await formulaireInstance.put(`/Template/UpdateCadreTemplateName`, newTemplateName);
-      await AuditService.logAction(
-        userId,
-        `Modification du nom du template à: ${newTemplateName}`,
-        'Update',
-        null
-      );
-      setFormTemplate({ ...formTemplate, name: newTemplateName });
-      setIsModalOpen(false);
+        setIsEditIconVisible(false);
+        setIsEditing(false);
+        const response = await formulaireInstance.put(`/Template/UpdateCadreTemplateName`, newTemplateName);
+        await AuditService.logAction(
+            userId,
+            'Modification du nom du template cadre',
+            'Update',
+            null,
+            { oldName: formTemplate.name },
+            { newName: newTemplateName }
+        );
+        setFormTemplate({ ...formTemplate, name: newTemplateName });
+        setIsModalOpen(false);
     } catch (error) {
-      console.error('Error updating template name:', error);
-      setErrorMessage('Erreur lors de la mise à jour du nom du modèle.');
-      setOpenSnackbar(true);
+        console.error('Error updating template name:', error);
+        setErrorMessage('Erreur lors de la mise à jour du nom du modèle.');
+        setOpenSnackbar(true);
     }
-  };
+};
 
   const handleAddPriorityClick = () => {
     setIsAddPriorityModalOpen(true);
@@ -212,41 +214,47 @@ const Formulaire = () => {
     setNewMaxObjectives(0);
   };
 
-  const handleSavePriority = async () => {
+const handleSavePriority = async () => {
     if (newMaxObjectives > 6) {
-      setErrorMessage('Le nombre maximum d\'objectifs ne peut pas dépasser 6.');
-      setOpenSnackbar(true);
-      return;
+        setErrorMessage('Le nombre maximum d\'objectifs ne peut pas dépasser 6.');
+        setOpenSnackbar(true);
+        return;
     }
     if (!newPriorityName.trim()) {
-      setErrorMessage('Le nom de la priorité ne peut pas être vide.');
-      setOpenSnackbar(true);
-      return;
+        setErrorMessage('Le nom de la priorité ne peut pas être vide.');
+        setOpenSnackbar(true);
+        return;
     }
     try {
-      await formulaireInstance.post('/Template/AddStrategicPriority', {
-        name: newPriorityName,
-        maxObjectives: newMaxObjectives,
-        templateId: templateId
-      });
-      await AuditService.logAction(
-        userId,
-        `Ajout d'une priorité stratégique: ${newPriorityName}`,
-        'Create',
-        null
-      );
-      setIsAddPriorityModalOpen(false);
-      setNewPriorityName('');
-      setNewMaxObjectives(0);
-      const response = await formulaireInstance.get(`/Template/${templateId}`);
-      setFormTemplate(response.data.template);
-      setDynamicColumns(response.data.dynamicColumns);
+        const response = await formulaireInstance.post('/Template/AddStrategicPriority', {
+            name: newPriorityName,
+            maxObjectives: newMaxObjectives,
+            templateId: templateId
+        });
+        await AuditService.logAction(
+            userId,
+            'Ajout d\'une priorité stratégique',
+            'Create',
+            null,
+            null,
+            {
+                name: newPriorityName,
+                maxObjectives: newMaxObjectives,
+                templateId
+            }
+        );
+        setIsAddPriorityModalOpen(false);
+        setNewPriorityName('');
+        setNewMaxObjectives(0);
+        const templateResponse = await formulaireInstance.get(`/Template/${templateId}`);
+        setFormTemplate(templateResponse.data.template);
+        setDynamicColumns(templateResponse.data.dynamicColumns);
     } catch (error) {
-      console.error('Error adding strategic priority:', error);
-      setErrorMessage('Erreur lors de l\'ajout de la priorité stratégique.');
-      setOpenSnackbar(true);
+        console.error('Error adding strategic priority:', error);
+        setErrorMessage('Erreur lors de l\'ajout de la priorité stratégique.');
+        setOpenSnackbar(true);
     }
-  };
+};
 
   const handleEditPrioritiesClick = async () => {
     await fetchAllPriorities();
@@ -269,45 +277,65 @@ const Formulaire = () => {
   };
 
   const handleSaveEditedPriorities = async () => {
-    if (editedPriorities.some((p) => p.maxObjectives > 6)) {
-      setErrorMessage('Une ou plusieurs priorités ont un nombre maximum d\'objectifs supérieur à 6.');
-      setOpenSnackbar(true);
-      return;
-    }
-    if (editedPriorities.some((p) => !p.name.trim())) {
-      setErrorMessage('Le nom d\'une priorité ne peut pas être vide.');
-      setOpenSnackbar(true);
-      return;
-    }
-    try {
-      const updatePromises = editedPriorities.map((priority) =>
-        formulaireInstance.put('/Template/UpdatePriority', {
-          templatePriorityId: priority.templatePriorityId,
-          newName: priority.name,
-          newMaxObjectives: priority.maxObjectives,
-          isActif: priority.isActif
-        })
-      );
+  if (editedPriorities.some((p) => p.maxObjectives > 6)) {
+    setErrorMessage('Une ou plusieurs priorités ont un nombre maximum d\'objectifs supérieur à 6.');
+    setOpenSnackbar(true);
+    return;
+  }
+  if (editedPriorities.some((p) => !p.name.trim())) {
+    setErrorMessage('Le nom d\'une priorité ne peut pas être vide.');
+    setOpenSnackbar(true);
+    return;
+  }
+  try {
+    const updatePromises = editedPriorities.map((priority) =>
+      formulaireInstance.put('/Template/UpdatePriority', {
+        templatePriorityId: priority.templatePriorityId,
+        newName: priority.name,
+        newMaxObjectives: priority.maxObjectives,
+        isActif: priority.isActif
+      })
+    );
 
-      await Promise.all(updatePromises);
-      await AuditService.logAction(
-        userId,
-        'Mise à jour des priorités stratégiques',
-        'Update',
-        null
-      );
-      const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
-      setFormTemplate(refreshedTemplate.data.template);
-      setDynamicColumns(refreshedTemplate.data.dynamicColumns);
+    await Promise.all(updatePromises);
 
-      setIsEditPrioritiesModalOpen(false);
-      setEditedPriorities([]);
-    } catch (error) {
-      console.error('Error updating strategic priorities:', error);
-      setErrorMessage('Erreur lors de la mise à jour des priorités stratégiques.');
-      setOpenSnackbar(true);
-    }
-  };
+    // Prepare old values from formTemplate.templateStrategicPriorities
+    const oldValues = formTemplate?.templateStrategicPriorities?.map(p => ({
+      templatePriorityId: p.templatePriorityId,
+      name: p.name,
+      maxObjectives: p.maxObjectives,
+      isActif: p.isActif
+    })) || [];
+
+    await AuditService.logAction(
+      userId,
+      'Mise à jour des priorités stratégiques',
+      'Update',
+      null,
+      oldValues.length > 0 ? oldValues : null,
+      {
+        templateId,
+        updatedPriorities: editedPriorities.map(p => ({
+          templatePriorityId: p.templatePriorityId,
+          name: p.name,
+          maxObjectives: p.maxObjectives,
+          isActif: p.isActif
+        }))
+      }
+    );
+
+    const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
+    setFormTemplate(refreshedTemplate.data.template);
+    setDynamicColumns(refreshedTemplate.data.dynamicColumns);
+
+    setIsEditPrioritiesModalOpen(false);
+    setEditedPriorities([]);
+  } catch (error) {
+    console.error('Error updating strategic priorities:', error);
+    setErrorMessage('Erreur lors de la mise à jour des priorités stratégiques.');
+    setOpenSnackbar(true);
+  }
+};
 
   const handleAddColumnClick = () => {
     setIsAddColumnModalOpen(true);
@@ -333,9 +361,10 @@ const Formulaire = () => {
         userId,
         `Ajout d'une colonne dynamique: ${newColumnName}`,
         'Create',
-        null
+        null,
+        null,
+        { columnName: newColumnName }
       );
-      // Optionally refresh dynamic columns
 
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
@@ -347,7 +376,6 @@ const Formulaire = () => {
       setOpenSnackbar(true);
     }
   };
-
   const fetchInactiveColumns = async () => {
     try {
       const response = await formulaireInstance.get('/Template/GetAllColumns', {
@@ -374,6 +402,12 @@ const Formulaire = () => {
       return;
     }
     try {
+      const oldValues = dynamicColumns.map((column) => ({
+        columnId: column.columnId,
+        name: column.name,
+        isActive: column.isActive
+      }));
+
       const updatePromises = inactiveColumns.map((column) =>
         formulaireInstance.put('/Template/UpdateDynamicColumn', {
           id: column.columnId,
@@ -383,12 +417,21 @@ const Formulaire = () => {
       );
 
       await Promise.all(updatePromises);
+      const newValues = inactiveColumns.map((column) => ({
+        columnId: column.columnId,
+        name: column.name,
+        isActive: column.isActive
+      }));
+
       await AuditService.logAction(
         userId,
         'Mise à jour des colonnes dynamiques',
         'Update',
-        null
+        null,
+        oldValues.length > 0 ? oldValues : null,
+        newValues.length > 0 ? newValues : null
       );
+
       const refreshedTemplate = await formulaireInstance.get(`/Template/${templateId}`);
       setFormTemplate(refreshedTemplate.data.template);
       setDynamicColumns(refreshedTemplate.data.dynamicColumns);
@@ -427,15 +470,19 @@ const Formulaire = () => {
         }
 
         pdf.save('formulaire_Cadre.pdf');
-        AuditService.logAction(
-          userId,
-          'Exportation du formulaire en PDF',
-          'Export',
-          null
-        ).catch((err) => {
-          console.error('Erreur lors de l\'enregistrement de l\'audit:', err);
-          setErrorMessage('Erreur lors de l\'enregistrement de l\'action d\'audit.');
-        });
+        // AuditService.logAction(
+        //   userId,
+        //   'Exportation du formulaire en PDF',
+        //   'Export',
+        //   null,
+        //   null,
+        //   {
+        //       formId: formId || 'unknown'
+        //   }
+        // ).catch((err) => {
+        //   console.error('Erreur lors de l\'enregistrement de l\'audit:', err);
+        //   setErrorMessage('Erreur lors de l\'enregistrement de l\'action d\'audit.');
+        // });
       })
       .catch((err) => {
         console.error('Erreur lors de la génération du PDF', err);

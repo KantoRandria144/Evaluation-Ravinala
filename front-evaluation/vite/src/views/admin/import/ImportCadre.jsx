@@ -96,7 +96,7 @@ function ImportCadre() {
     }
   };
 
-  const handleSubmit = async (event) => {
+const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitted(true);
 
@@ -126,7 +126,17 @@ function ImportCadre() {
         userId,
         'Importation des fichiers d\'évaluation cadre',
         'Import',
-        null
+        null,
+        null,
+        {
+          annee,
+          files: {
+            evaluation: evaluationFile?.name || null,
+            fixation: fixationFile?.name || null,
+            miParcours: miParcoursFile?.name || null,
+            finale: finaleFile?.name || null
+          }
+        }
       );
 
       if (response.status === 200) {
@@ -161,6 +171,7 @@ function ImportCadre() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <Box sx={{ mx: 'auto', maxWidth: '800px', padding: '20px' }}>

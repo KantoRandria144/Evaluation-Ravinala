@@ -123,7 +123,7 @@ GO
 CREATE  TABLE Users ( 
 	Id                   nvarchar(450)      NOT NULL,
 	Matricule            nvarchar(max)      NOT NULL,
-	Name                 nvarchar(max)      NOT NULL,
+	Name                 nvarchar(max)      NULL,
 	Email                nvarchar(max)      NOT NULL,
 	Poste                nvarchar(max)      NULL,
 	Department           nvarchar(max)      NULL,
@@ -490,9 +490,12 @@ CREATE TABLE AuditLogs (
     Action NVARCHAR(100) NOT NULL,   
     TableName NVARCHAR(255) NULL,   
     RecordId NVARCHAR(100) NULL,    
+    OldValues NVARCHAR(MAX) NULL,   
+    NewValues NVARCHAR(MAX) NULL,   
     Timestamp DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-Go
+GO
+
 
 CREATE NONCLUSTERED INDEX IX_UserIndicatorResults_UserIndicatorId ON UserIndicatorResults ( UserIndicatorId  asc );
 GO
@@ -762,6 +765,7 @@ INSERT INTO Sections( Id, Name ) VALUES ( 7, 'Gestion import');
 INSERT INTO Sections( Id, Name ) VALUES ( 8, 'Gestion export');
 INSERT INTO Sections( Id, Name ) VALUES ( 9, 'Gestion des habilitations');
 INSERT INTO Sections( Id, Name ) VALUES ( 10, 'Gestion des Dashbords');
+INSERT INTO Sections( Id, Name ) VALUES ( 11, 'Gestion Logs');
 SET IDENTITY_INSERT Sections OFF;
 
 SET IDENTITY_INSERT TemplateStrategicPriorities ON;
@@ -1086,6 +1090,8 @@ INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 29, 'R
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 30, 'Recevoir des notifications de validation pendant l''évaluation.', 9, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 31, 'Voir le tableau de bord en tant qu’administrateur.', 10, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 32, 'Voir le tableau de bord en tant que collaborateur.', 10, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 33, 'Voir la liste des logs.', 11, 1);
+
 SET IDENTITY_INSERT HabilitationAdmins OFF;
 
 INSERT INTO HabilitationHabilitationAdmin( HabilitationAdminsId, HabilitationsId ) VALUES ( 1, 1);
@@ -1199,6 +1205,13 @@ INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'fbb54cbc-
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1001, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 3, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+
+
+
 
 SET IDENTITY_INSERT UserObjectives ON;
 INSERT INTO UserObjectives( ObjectiveId, Description, Weighting, ResultIndicator, Result, UserEvalId, PriorityId, CreatedBy, CreatedAt ) VALUES ( 1, 'Test 1', 50, 'Indic', 0, 5, 1, 'db805c79-6ff8-45eb-97b2-f6825775f72f', '2025-07-04 09:50:46 AM');

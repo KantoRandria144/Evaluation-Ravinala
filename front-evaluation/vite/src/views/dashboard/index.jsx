@@ -18,7 +18,6 @@ import ScoreNonCadre from './ContratObjectivNonCadre';
 
 // assets
 import StorefrontTwoToneIcon from '@mui/icons-material/StorefrontTwoTone';
-import AuditService from '../../services/AuditService';
 
 // ==============================|| DEFAULT DASHBOARD ||============================== //
 
@@ -31,15 +30,6 @@ const Dashboard = () => {
   const userType = user.typeUser;
 
   useEffect(() => {
-    // Log the page consultation
-    AuditService.logAction(
-      userId,
-      'Consultation de la page Dashboard',
-      'View',
-      null
-    ).catch((err) => {
-      console.error('Erreur lors de l\'enregistrement de l\'audit pour la consultation du Dashboard:', err);
-    });
 
     setLoading(false);
   }, []);

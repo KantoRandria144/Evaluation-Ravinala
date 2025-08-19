@@ -149,36 +149,40 @@ const Formulaire = () => {
   }, [templateId]);
 
   const handleSaveTemplateName = async () => {
-    if (!newTemplateName.trim()) {
-      setErrorMessage('Le nom du formulaire ne peut pas être vide.');
-      return;
-    }
+  if (!newTemplateName.trim()) {
+    setErrorMessage('Le nom du formulaire ne peut pas être vide.');
+    setOpenSnackbar(true);
+    return;
+  }
 
-    try {
-      await formulaireInstance.put(`/Template/UpdateNonCadreTemplateName`, newTemplateName, {
-        headers: { 'Content-Type': 'application/json' }
-      });
+  try {
+    await formulaireInstance.put(`/Template/UpdateCadreTemplateName`, newTemplateName, {
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-      await AuditService.logAction(
-        userId,
-        `Modification du nom du template à: ${newTemplateName}`,
-        'Update',
-        null
-      );
+    await AuditService.logAction(
+      userId,
+      `Modification du nom du template à: ${newTemplateName}`,
+      'Update',
+      null,
+      { oldName: formTemplate?.name || '' },
+      { newName: newTemplateName }
+    );
 
-      setFormTemplate((prevTemplate) => ({ ...prevTemplate, name: newTemplateName }));
-      setIsModalOpen(false);
-      setErrorMessage(null);
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du nom du formulaire:', error);
-
-      if (error.response && error.response.data) {
-        setErrorMessage(error.response.data.title || 'Erreur lors de la mise à jour.');
-      } else {
-        setErrorMessage('Erreur réseau lors de la mise à jour.');
-      }
-    }
-  };
+    setFormTemplate((prevTemplate) => ({ ...prevTemplate, name: newTemplateName }));
+    setIsModalOpen(false);
+    setIsEditIconVisible(false);
+    setIsEditing(false);
+    setErrorMessage('');
+    setOpenSnackbar(false);
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du nom du formulaire:', error);
+    // setErrorMessage(
+    //   error.response?.data?.title || 'Erreur lors de la mise à jour du nom du modèle.'
+    // );
+    setOpenSnackbar(true);
+  }
+};
 
   const handleEditClick = () => {
     setIsEditing((prev) => !prev);

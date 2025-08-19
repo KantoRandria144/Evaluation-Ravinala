@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using UserService.Models.log;
 
 namespace UserService.Models
 {
@@ -26,5 +27,7 @@ namespace UserService.Models
         
         public EmployeeType? TypeUser { get; set; }
         public List<Habilitation> Habilitations { get; set; }
+        
+        public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     }
 }

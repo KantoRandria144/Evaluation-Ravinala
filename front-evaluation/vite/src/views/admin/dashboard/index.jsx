@@ -32,12 +32,12 @@ const Dashboard = () => {
       try {
         const user = JSON.parse(localStorage.getItem('user')) || {};
         const userId = user.id;
-        await AuditService.logAction(
-          userId,
-          'Consultation du tableau de bord des statistiques des collaborateurs',
-          'Users',
-          null
-        );
+        // await AuditService.logAction(
+        //   userId,
+        //   'Consultation du tableau de bord des statistiques des collaborateurs',
+        //   'Users',
+        //   null
+        // );
       } catch (error) {
         console.error('Error logging audit action:', error);
       }

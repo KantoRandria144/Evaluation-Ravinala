@@ -1238,6 +1238,7 @@ namespace UserService.Controllers
                         usersToAdd.Add(new User
                         {
                             Id = adUser.Id,
+                            Matricule = adUser.Matricule,
                             Name = adUser.DisplayName,
                             Email = adUser.Email,
                             Department = adUser.Department,
@@ -1274,6 +1275,7 @@ namespace UserService.Controllers
                             dbUser.Department != depart || dbUser.Poste != aduser?.Title ||
                             dbUser.SuperiorId != superiorId || dbUser.SuperiorName != superiorName)
                         {
+                            dbUser.Matricule = aduser.Matricule;
                             dbUser.Name = aduser?.DisplayName;
                             dbUser.Email = aduser?.Email;
                             dbUser.Department = depart;

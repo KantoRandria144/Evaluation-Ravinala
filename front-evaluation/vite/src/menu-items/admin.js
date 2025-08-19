@@ -1,9 +1,7 @@
-// assets
-import { IconKey, IconUsers, IconFileImport, IconDashboard,IconRotateClockwise } from '@tabler/icons-react';
-
+import { IconKey, IconUsers, IconFileImport, IconDashboard, IconRotateClockwise, IconFileText } from '@tabler/icons-react';
 // constant
 const icons = {
-  IconKey, IconUsers, IconFileImport, IconDashboard,IconRotateClockwise
+  IconKey, IconUsers, IconFileImport, IconDashboard,IconRotateClockwise,IconFileText
 };
 
 // ==============================|| EXTRA PAGES MENU ITEMS ||============================== //
@@ -97,10 +95,20 @@ const admin = {
     {
       id: 'importCSV',
       title: 'Import',
-      type: 'item',
+      type: 'item', 
       url: '/import/importCSV',
       requiredHabilitation: 27,
       icon: icons.IconFileImport,
+      breadcrumbs: false
+    }
+    ,
+    {
+      id: 'Logs',
+      title: 'Logs',
+      type: 'item', 
+      url: '/logs/liste-logs',
+      requiredHabilitation: 33,
+      icon: icons.IconFileText,
       breadcrumbs: false
     }
 

@@ -51,12 +51,7 @@ const NOnAutoriser = () => {
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${CLASSIFIER}`
       );
       setCanClassify(classifyResponse.data.hasAccess);
-      await AuditService.logAction(
-        userId,
-        'Vérification des autorisations pour classifier les utilisateurs',
-        'Check',
-        null
-      );
+      
     } catch (error) {
       console.error('Erreur lors de la vérification des autorisations :', error);
     }
@@ -72,12 +67,7 @@ const NOnAutoriser = () => {
     try {
       const response = await authInstance.get('/User/users-with-null-type');
       setEmployees(response.data);
-      await AuditService.logAction(
-        userId,
-        'Consultation de la liste initiale des utilisateurs non classifiés',
-        'Fetch',
-        null
-      );
+
     } catch (error) {
       console.error('Error fetching users with null type:', error);
     }

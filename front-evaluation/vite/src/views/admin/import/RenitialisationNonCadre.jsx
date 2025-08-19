@@ -30,10 +30,10 @@ function RenitialisationNonCadre() {
         userHelpContent: false
     });
 
-  const user = JSON.parse(localStorage.getItem('user')) || {};
-  const userId = user.id;
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
 
-  useEffect(() => {
+    useEffect(() => {
         if (annee) {
             setMessage('');
             setSeverity('success');
@@ -46,7 +46,6 @@ function RenitialisationNonCadre() {
     const handleCheckResetStatus = async () => {
         try {
             const res = await formulaireInstance.get(`/NonCadreReset/reset-status?annee=${annee}`);
-            
             setImportStatus(res.data);
         } catch (error) {
             console.error("Erreur lors de la récupération du statut.", error);
@@ -81,12 +80,17 @@ function RenitialisationNonCadre() {
                 ...selectedCadres
             });
 
-          await AuditService.logAction(
-            userId,
-            'Réinitialisation des reset-non-cadre',
-            'Import',
-            null
-          );
+            await AuditService.logAction(
+                userId,
+                'Réinitialisation des fichiers non-cadres',
+                'Reset',
+                null,
+                null,
+                {
+                    annee,
+                    selectedCadres
+                }
+            );
 
             if (response.status === 200) {
                 setMessage('Cadres réinitialisés avec succès.');
