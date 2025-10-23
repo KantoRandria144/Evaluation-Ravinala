@@ -131,10 +131,22 @@ namespace EvaluationService.Controllers
             {
                 await transaction.RollbackAsync();
                 _logger.LogError(ex, $"Error resetting cadre data for year {request.Annee}.");
+                string errorMessage = "Une erreur est survenue lors de la réinitialisation.";
+                string details = null;
+
+                if (IsForeignKeyConstraintViolation(ex))
+                {
+                    errorMessage = "Cette entité que vous essayez d'effacer est reliée avec plusieurs entités.";
+                }
+                else
+                {
+                    details = ex.Message;
+                }
+
                 return StatusCode(500, new ControllerErrorResponse
                 {
-                    ErrorMessage = "Une erreur est survenue lors de la réinitialisation.",
-                    Details = ex.Message
+                    ErrorMessage = errorMessage,
+                    Details = details
                 });
             }
         }
@@ -173,6 +185,22 @@ namespace EvaluationService.Controllers
             });
         }
 
+        // Helper method to detect foreign key constraint violations
+        private bool IsForeignKeyConstraintViolation(Exception ex)
+        {
+            var innerException = ex;
+            while (innerException != null)
+            {
+                var message = innerException.Message.ToLowerInvariant();
+                if (message.Contains("foreign key") && message.Contains("constraint") && message.Contains("violation"))
+                {
+                    return true;
+                }
+                innerException = innerException.InnerException;
+            }
+            return false;
+        }
+
         // Helper method to delete records from dependent tables
         private async Task<int> DeleteDependentRecordsAsync(List<int> userEvalIds, string tableName, string foreignKeyColumn = "UserEvalId")
         {
@@ -199,5 +227,4 @@ namespace EvaluationService.Controllers
         public bool MiParcours { get; set; }
         public bool Finale { get; set; }
     }
-
 }

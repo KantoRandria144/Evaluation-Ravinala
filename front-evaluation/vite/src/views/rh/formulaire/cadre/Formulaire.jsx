@@ -304,7 +304,7 @@ const handleSavePriority = async () => {
       templatePriorityId: p.templatePriorityId,
       name: p.name,
       maxObjectives: p.maxObjectives,
-      isActif: p.isActif
+      isActif: p.isActif ?? true
     })) || [];
 
     await AuditService.logAction(

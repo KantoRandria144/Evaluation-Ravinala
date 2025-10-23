@@ -105,12 +105,11 @@ namespace EvaluationService.Controllers
                         await DeleteDependentRecordsAsync(userEvalIds, "HistoryCFos");
                     }
 
-                    if (request.UserHelpContent)
-                    {
-                        await DeleteDependentRecordsAsync(userEvalIds, "UserHelpContents");
-                    }
+                    // Suppression critique pour éviter les violations de FK avec UserHelpContents
+                    _logger.LogInformation($"Attempting to delete UserHelpContents for year {request.Annee}.");
+                    await DeleteDependentRecordsAsync(userEvalIds, "UserHelpContents");
 
-                    // Suppression critique pour éviter les violations de FK
+                    // Suppression des objectifs pour éviter les violations de FK
                     _logger.LogInformation($"Attempting to delete UserObjectives for year {request.Annee}.");
                     await DeleteDependentRecordsAsync(userEvalIds, "UserObjectives");
 
@@ -161,10 +160,29 @@ namespace EvaluationService.Controllers
             {
                 await transaction.RollbackAsync();
                 _logger.LogError(ex, $"Error resetting non-cadre data for year {request.Annee}.");
+                string errorMessage = "Une erreur est survenue lors de la réinitialisation des données.";
+                string details = null;
+
+                if (IsForeignKeyConstraintViolation(ex))
+                {
+                    if (ex.Message.Contains("FK_UserHelpContents_UserEvaluations_UserEvalId"))
+                    {
+                        errorMessage = "Impossible de supprimer les évaluations car elles sont liées à des contenus d'aide utilisateur.";
+                    }
+                    else
+                    {
+                        errorMessage = "Impossible de supprimer les données car elles sont liées à d'autres enregistrements.";
+                    }
+                }
+                else
+                {
+                    details = ex.Message;
+                }
+
                 return StatusCode(500, new ControllerErrorResponse
                 {
-                    ErrorMessage = "Une erreur est survenue lors de la réinitialisation.",
-                    Details = ex.Message
+                    ErrorMessage = errorMessage,
+                    Details = details
                 });
             }
         }
@@ -197,14 +215,14 @@ namespace EvaluationService.Controllers
                 .Select(ue => ue.UserEvalId)
                 .ToListAsync();
 
-            bool hasFixation = await _context.HistoryUserIndicatorFOs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFixation = await _context.HistoryCFos.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
             bool hasMiParcoursIndicators = await _context.HistoryUserIndicatorMPs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-            bool hasMiParcoursCompetence = await _context.HistoryUserCompetenceMPs.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
-            bool hasFinale = await _context.HistoryUserindicatorFis.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasMiParcoursCompetence = await _context.HistoryCMps.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
+            bool hasFinale = await _context.HistoryCFis.AnyAsync(h => userEvalIds.Contains(h.UserEvalId));
             bool hasHelp = await _context.Helps.AnyAsync(h => h.TemplateId == evaluation.TemplateId);
             bool hasUserHelpContent = await _context.UserHelpContents.AnyAsync(uhc => userEvalIds.Contains(uhc.UserEvalId));
 
-            _logger.LogInformation("Import status for year {Year}: Evaluation={Evaluation}, Fixation={Fixation}, MiParcoursIndicators={MiParcoursIndicators}, MiParcoursCompetence={MiParcoursCompetence}, Finale={Finale}, Help={Help}, UserHelpContent={UserHelpContent}.",
+            _logger.LogInformation("Reset status for year {Year}: Evaluation={Evaluation}, Fixation={Fixation}, MiParcoursIndicators={MiParcoursIndicators}, MiParcoursCompetence={MiParcoursCompetence}, Finale={Finale}, Help={Help}, UserHelpContent={UserHelpContent}.",
                 annee, true, hasFixation, hasMiParcoursIndicators, hasMiParcoursCompetence, hasFinale, hasHelp, hasUserHelpContent);
 
             return Ok(new
@@ -217,6 +235,22 @@ namespace EvaluationService.Controllers
                 Help = hasHelp,
                 UserHelpContent = hasUserHelpContent
             });
+        }
+
+        // Helper method to detect foreign key constraint violations
+        private bool IsForeignKeyConstraintViolation(Exception ex)
+        {
+            var innerException = ex;
+            while (innerException != null)
+            {
+                var message = innerException.Message.ToLowerInvariant();
+                if (message.Contains("foreign key") && message.Contains("constraint"))
+                {
+                    return true;
+                }
+                innerException = innerException.InnerException;
+            }
+            return false;
         }
 
         // Méthode utilitaire pour supprimer les enregistrements dépendants d'une table donnée

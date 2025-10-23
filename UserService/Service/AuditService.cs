@@ -42,8 +42,7 @@ public class AuditService : IAuditService
             RecordId = recordId,
             OldValues = oldValues,
             NewValues = newValues,
-            Timestamp = DateTime.UtcNow
-        };
+        };  
 
         _context.AuditLogs.Add(log);
         await _context.SaveChangesAsync();

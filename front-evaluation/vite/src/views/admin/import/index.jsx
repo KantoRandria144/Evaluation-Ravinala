@@ -26,14 +26,14 @@ function ImportCSV() {
             setCanImport(importResponse.data.hasAccess);
 
             // Log audit pour la vérification des permissions
-            await AuditService.logAction(
-                userId,
-                'Vérification des permissions pour importer/réinitialiser les évaluations',
-                'CheckPermission',
-                null,
-                null,
-                { habilitationId: IMPORT_EVALUATION, hasAccess: importResponse.data.hasAccess }
-            );
+            // await AuditService.logAction(
+            //     userId,
+            //     'Vérification des permissions pour importer/réinitialiser les évaluations',
+            //     'CheckPermission',
+            //     null,
+            //     null,
+            //     { habilitationId: IMPORT_EVALUATION, hasAccess: importResponse.data.hasAccess }
+            // );
         } catch (error) {
             console.error('Erreur lors de la vérification des autorisations :', error);
             setCanImport(false); // Par sécurité, désactiver l'accès en cas d'erreur

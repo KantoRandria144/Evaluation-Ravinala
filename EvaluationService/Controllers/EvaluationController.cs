@@ -752,7 +752,6 @@ namespace EvaluationService.Controllers
             {
                 return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
             }
-
             var evaluationId = await _context.Evaluations
                 .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
@@ -2325,7 +2324,7 @@ namespace EvaluationService.Controllers
 
                 if (!historyRecords.Any())
                 {
-                    return NotFound(new { Message = "Aucun enregistrement trouvé pour cet utilisateur et cette évaluation." });
+                    return NotFound(new { Message = $"Aucun enregistrement trouvé pour cet utilisateur et cette évaluation. {userEvalId.Value}" });
                 }
 
                 // Retourner les données récupérées

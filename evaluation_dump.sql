@@ -484,17 +484,17 @@ CREATE  TABLE UserIndicatorResults (
  );
 GO
 
-CREATE TABLE AuditLogs (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
-    UserId NVARCHAR(255) NOT NULL,
-    Action NVARCHAR(100) NOT NULL,   
-    TableName NVARCHAR(255) NULL,   
-    RecordId NVARCHAR(100) NULL,    
-    OldValues NVARCHAR(MAX) NULL,   
-    NewValues NVARCHAR(MAX) NULL,   
-    Timestamp DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-GO
+	CREATE TABLE AuditLogs (
+		Id INT IDENTITY(1,1) PRIMARY KEY,
+		UserId NVARCHAR(255) NOT NULL,
+		Action NVARCHAR(100) NOT NULL,   
+		TableName NVARCHAR(255) NULL,   
+		RecordId NVARCHAR(100) NULL,    
+		OldValues NVARCHAR(MAX) NULL,   
+		NewValues NVARCHAR(MAX) NULL,   
+		Timestamp DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+	);
+	GO
 
 
 CREATE NONCLUSTERED INDEX IX_UserIndicatorResults_UserIndicatorId ON UserIndicatorResults ( UserIndicatorId  asc );
@@ -1071,19 +1071,19 @@ INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 10, 'M
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 11, 'Consulter les périodes d''évaluation', 4, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 12, 'Créer une nouvelle période d''évaluation', 4, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 13, 'Modifier une période d''évaluation', 4, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 14, 'Consulter les subordonnés', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 14, 'Consulter les collaborateurs', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 15, 'Remplir ses formulaires d''évaluation pour un cadre', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 16, 'Remplir les formulaires d''évaluation pour ses subordonnés cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 16, 'Remplir les formulaires d''évaluation pour ses collaborateurs cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 17, 'Consulter les formulaires en cours des collaborateurs cadres', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 18, 'Consulter les formulaires en cours des subordonnés cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 18, 'Consulter les formulaires en cours des collaborateurs cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 19, 'Remplir ses formulaires d''évaluation pour un non-cadre', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 20, 'Remplir les formulaires d''évaluation pour ses subordonnés non-cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 20, 'Remplir les formulaires d''évaluation pour ses collaborateurs non-cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 21, 'Consulter les formulaires en cours des collaborateurs non-cadres', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 22, 'Consulter les formulaires en cours des subordonnés non-cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 22, 'Consulter les formulaires en cours des collaborateurs non-cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 23, 'Consulter ses archives personnelles', 6, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 24, 'Consulter les archives de tous les collaborateurs', 6, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 25, 'Modifier les fiches archivées de tous les collaborateurs', 6, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 26, 'Consulter les archives des subordonnés', 6, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 26, 'Consulter les archives des collaborateurs', 6, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 27, 'Importer les évaluations', 7, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 28, 'Exporter les évaluations', 8, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 29, 'Recevoir une notification au début et à la clôture d''une évaluation.', 9, 1);

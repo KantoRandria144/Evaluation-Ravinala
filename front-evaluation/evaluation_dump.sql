@@ -1189,6 +1189,12 @@ INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'fbb54cbc-
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1001, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1001, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+
+
 
 SET IDENTITY_INSERT UserObjectives ON;
 INSERT INTO UserObjectives( ObjectiveId, Description, Weighting, ResultIndicator, Result, UserEvalId, PriorityId, CreatedBy, CreatedAt ) VALUES ( 1, 'Test 1', 50, 'Indic', 0, 5, 1, 'db805c79-6ff8-45eb-97b2-f6825775f72f', '2025-07-04 09:50:46 AM');
