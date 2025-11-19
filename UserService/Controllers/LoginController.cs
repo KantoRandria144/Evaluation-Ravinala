@@ -109,8 +109,8 @@ namespace UserService.Controllers
                         // if (userConnected.TypeUser == null)
                         // {
                         //     return new ValidationResult { Message = "Vous ne pouvez pas acceder. Veuillez contacter l'administrateur.", Type = "type_user_missing" };
-                        // 
 
+                        // }
                         return new ValidationResult { Message = "Success", Type = "success", User = dbUser };
                     }
                     else
