@@ -20,13 +20,11 @@ const admin = {
       icon: icons.IconDashboard,
       breadcrumbs: false
     },
-
     {
-      id: 'authentication',
+      id: 'admin-droits-acces',  // ✅ Changé
       title: 'Droits et accès',
       type: 'collapse',
       icon: icons.IconKey,
-
       children: [
         {
           id: 'listeHabilitation',
@@ -36,23 +34,14 @@ const admin = {
           requiredHabilitation: 1,
           target: false,
           breadcrumbs: false
-        },
-        // {
-        //   id: 'listeSpec',
-        //   title: 'Specification',
-        //   type: 'item', 
-        //   url: '/specification/listeSpec',
-        //   target: false,
-        //   breadcrumbs: false
-        // }
+        }
       ]
     },
     {
-      id: 'authentication',
+      id: 'admin-utilisateur',  // ✅ Changé
       title: 'Utilisateur',
       type: 'collapse',
       icon: icons.IconUsers,
-
       children: [
         {
           id: 'listeUtilisateur',
@@ -63,24 +52,6 @@ const admin = {
           target: false,
           breadcrumbs: false
         },
-        // {
-        //   id: 'listeCadre',
-        //   title: 'Cadre',
-        //   type: 'item',
-        //   url: '/utilisateur/listeCadre',
-        //   requiredHabilitation: 8,
-        //   target: false,
-        //   breadcrumbs: false
-        // },
-        // {
-        //   id: 'listNoneCadre',
-        //   title: 'Non Cadre',
-        //   type: 'item',
-        //   url: '/utilisateur/listeNonCadre',
-        //   requiredHabilitation: 8,
-        //   target: false,
-        //   breadcrumbs: false
-        // },
         {
           id: 'nullType',
           title: 'Non classifié',
@@ -89,29 +60,27 @@ const admin = {
           requiredHabilitation: 6,
           target: false,
           breadcrumbs: false
-        },
+        }
       ]
     },
     {
       id: 'importCSV',
       title: 'Import',
-      type: 'item', 
+      type: 'item',
       url: '/import/importCSV',
       requiredHabilitation: 27,
       icon: icons.IconFileImport,
       breadcrumbs: false
-    }
-    ,
+    },
     {
       id: 'Logs',
       title: 'Logs',
-      type: 'item', 
+      type: 'item',
       url: '/logs/liste-logs',
       requiredHabilitation: 33,
       icon: icons.IconFileText,
       breadcrumbs: false
     }
-
   ]
 };
 

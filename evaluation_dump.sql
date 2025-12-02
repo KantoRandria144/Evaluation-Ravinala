@@ -1,3 +1,4 @@
+
 CREATE  TABLE Etats ( 
 	EtatId               int    IDENTITY  NOT NULL,
 	EtatDesignation      nvarchar(max)      NOT NULL,
@@ -97,15 +98,18 @@ CREATE  TABLE Sections (
  );
 GO
 
-CREATE  TABLE TemplateStrategicPriorities ( 
-	TemplatePriorityId   int    IDENTITY  NOT NULL,
-	Name                 nvarchar(max)      NOT NULL,
-	MaxObjectives        int      NOT NULL,
-	TemplateId           int      NOT NULL,
-	IsActif              bit      NOT NULL,
-	CONSTRAINT PK_TemplateStrategicPriorities PRIMARY KEY CLUSTERED ( TemplatePriorityId  asc ) 
- );
+CREATE TABLE TemplateStrategicPriorities ( 
+    TemplatePriorityId   int    IDENTITY NOT NULL,
+    Name                 nvarchar(max)   NOT NULL,
+    MaxObjectives        int             NOT NULL,
+    TemplateId           int             NOT NULL,
+    IsActif              bit             NOT NULL,
+    Ponderation          decimal(15,2)   NULL,
+    CONSTRAINT PK_TemplateStrategicPriorities 
+        PRIMARY KEY CLUSTERED ( TemplatePriorityId ASC ) 
+);
 GO
+
 
 CREATE NONCLUSTERED INDEX IX_TemplateStrategicPriorities_TemplateId ON TemplateStrategicPriorities ( TemplateId  asc );
 GO
@@ -1510,7 +1514,7 @@ INSERT INTO HistoryCMps( HcmId, UserEvalId, PriorityName, Description, Weighting
 SET IDENTITY_INSERT HistoryCMps OFF;
 GO
 
-SET IDENTITY_INSERT Indicators
-INSERT INTO Indicators( IndicatorId, label,MaxResults,TemplateId,IsActive  ) VALUES ( 1, 'TEST', 3 ,2, true);
+-- SET IDENTITY_INSERT Indicators
+-- INSERT INTO Indicators( IndicatorId, label,MaxResults,TemplateId,IsActive  ) VALUES ( 1, 'TEST', 3 ,2, true);
 
 

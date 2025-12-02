@@ -73,6 +73,7 @@ const Formulaire = () => {
   const [isAddPriorityModalOpen, setIsAddPriorityModalOpen] = useState(false);
   const [newPriorityName, setNewPriorityName] = useState('');
   const [newMaxObjectives, setNewMaxObjectives] = useState(0);
+  const [newPonderation, setNewPonderation] = useState(null);
   const [isEditIconVisible, setIsEditIconVisible] = useState(false);
   const [isEditPrioritiesModalOpen, setIsEditPrioritiesModalOpen] = useState(false);
   const [editedPriorities, setEditedPriorities] = useState([]);
@@ -163,6 +164,7 @@ const Formulaire = () => {
           templatePriorityId: priority.templatePriorityId,
           name: priority.name,
           maxObjectives: priority.maxObjectives,
+          ponderation: priority.ponderation,
           isActif: priority.isActif
         }))
       );
@@ -212,6 +214,7 @@ const handleSaveTemplateName = async () => {
     setIsAddPriorityModalOpen(false);
     setNewPriorityName('');
     setNewMaxObjectives(0);
+    setNewPonderation(null);
   };
 
 const handleSavePriority = async () => {
@@ -225,12 +228,20 @@ const handleSavePriority = async () => {
         setOpenSnackbar(true);
         return;
     }
+    if (newPonderation !== null && (newPonderation < 0 || newPonderation > 100)) {
+        setErrorMessage('La pondération doit être entre 0 et 100.');
+        setOpenSnackbar(true);
+        return;
+    }
     try {
-        const response = await formulaireInstance.post('/Template/AddStrategicPriority', {
+        const requestBody = {
             name: newPriorityName,
-            maxObjectives: newMaxObjectives,
-            templateId: templateId
-        });
+            maxObjectives: newMaxObjectives
+        };
+        if (newPonderation !== null) {
+            requestBody.ponderation = newPonderation;
+        }
+        const response = await formulaireInstance.post('/Template/AddStrategicPriority', requestBody);
         await AuditService.logAction(
             userId,
             'Ajout d\'une priorité stratégique',
@@ -240,12 +251,14 @@ const handleSavePriority = async () => {
             {
                 name: newPriorityName,
                 maxObjectives: newMaxObjectives,
+                ponderation: newPonderation,
                 templateId
             }
         );
         setIsAddPriorityModalOpen(false);
         setNewPriorityName('');
         setNewMaxObjectives(0);
+        setNewPonderation(null);
         const templateResponse = await formulaireInstance.get(`/Template/${templateId}`);
         setFormTemplate(templateResponse.data.template);
         setDynamicColumns(templateResponse.data.dynamicColumns);
@@ -262,10 +275,12 @@ const handleSavePriority = async () => {
   };
 
   const handlePriorityChange = (id, field, value) => {
+    const parsedValue = field === 'maxObjectives' ? parseInt(value) || 0 :
+                        field === 'ponderation' ? parseFloat(value) || null : value;
     setEditedPriorities((prevPriorities) =>
       prevPriorities.map((priority) =>
         priority.templatePriorityId === id
-          ? { ...priority, [field]: field === 'maxObjectives' ? parseInt(value) || 0 : value }
+          ? { ...priority, [field]: parsedValue }
           : priority
       )
     );
@@ -287,15 +302,24 @@ const handleSavePriority = async () => {
     setOpenSnackbar(true);
     return;
   }
+  if (editedPriorities.some((p) => p.ponderation !== null && (p.ponderation < 0 || p.ponderation > 100))) {
+    setErrorMessage('Une ou plusieurs pondérations ne sont pas entre 0 et 100.');
+    setOpenSnackbar(true);
+    return;
+  }
   try {
-    const updatePromises = editedPriorities.map((priority) =>
-      formulaireInstance.put('/Template/UpdatePriority', {
+    const updatePromises = editedPriorities.map((priority) => {
+      const requestBody = {
         templatePriorityId: priority.templatePriorityId,
         newName: priority.name,
         newMaxObjectives: priority.maxObjectives,
         isActif: priority.isActif
-      })
-    );
+      };
+      if (priority.ponderation !== null && priority.ponderation !== undefined) {
+        requestBody.newPonderation = priority.ponderation;
+      }
+      return formulaireInstance.put('/Template/UpdatePriority', requestBody);
+    });
 
     await Promise.all(updatePromises);
 
@@ -304,7 +328,8 @@ const handleSavePriority = async () => {
       templatePriorityId: p.templatePriorityId,
       name: p.name,
       maxObjectives: p.maxObjectives,
-      isActif: p.isActif ?? true
+      isActif: p.isActif ?? true,
+      ponderation: p.ponderation ?? null
     })) || [];
 
     await AuditService.logAction(
@@ -319,6 +344,7 @@ const handleSavePriority = async () => {
           templatePriorityId: p.templatePriorityId,
           name: p.name,
           maxObjectives: p.maxObjectives,
+          ponderation: p.ponderation,
           isActif: p.isActif
         }))
       }
@@ -354,9 +380,7 @@ const handleSavePriority = async () => {
     }
 
     try {
-      await formulaireInstance.post('/Template/AddDynamicColumn', null, {
-        params: { columnName: newColumnName }
-      });
+      await formulaireInstance.post('/Template/AddDynamicColumn', newColumnName);
       await AuditService.logAction(
         userId,
         `Ajout d'une colonne dynamique: ${newColumnName}`,
@@ -660,7 +684,7 @@ const handleSavePriority = async () => {
                       <StyledTableCell rowSpan={priority.maxObjectives + 2}>
                         {priority.name}
                         <Typography variant="caption" display="block">
-                          ({priority.weighting}%)
+                          ({priority.ponderation || 0}%)
                         </Typography>
                       </StyledTableCell>
                     </TableRow>
@@ -677,21 +701,27 @@ const handleSavePriority = async () => {
                       </TableRow>
                     ))}
                     <TableRow>
-                      <TotalStyledTableCell colSpan={1} sx={{ fontSize: '0.8rem' }}>
+                      <TotalStyledTableCell colSpan={2} sx={{ fontSize: '0.8rem' }}>
                         Sous-total de pondération
                       </TotalStyledTableCell>
-                      <TotalStyledTableCell sx={{ fontSize: '0.8rem' }}>0 %</TotalStyledTableCell>
+                      <TotalStyledTableCell sx={{ fontSize: '0.8rem' }}>{priority.ponderation || 0} %</TotalStyledTableCell>
                       <TotalStyledTableCell sx={{ fontSize: '0.8rem' }}>Sous-total résultats</TotalStyledTableCell>
                       <TotalStyledTableCell sx={{ fontSize: '0.8rem' }}>0 %</TotalStyledTableCell>
+                      {dynamicColumns?.map((col) => (
+                        <TotalStyledTableCell key={col.columnId} />
+                      ))}
                     </TableRow>
                   </React.Fragment>
                 ))}
                 <TableRow>
-                  <TotalStyledTableCell colSpan={1} sx={{ backgroundColor: 'transparent' }}></TotalStyledTableCell>
+                  <TotalStyledTableCell colSpan={2} sx={{ backgroundColor: 'transparent' }}></TotalStyledTableCell>
                   <TotalStyledTableCell sx={{ backgroundColor: '#fff5cc' }}>TOTAL PONDÉRATION (100%)</TotalStyledTableCell>
                   <TotalStyledTableCell sx={{ backgroundColor: '#fff5cc' }}>0 %</TotalStyledTableCell>
                   <TotalStyledTableCell sx={{ backgroundColor: '#fff5cc' }}>PERFORMANCE du contrat d'objectifs</TotalStyledTableCell>
                   <TotalStyledTableCell sx={{ backgroundColor: '#fff5cc' }}>0 %</TotalStyledTableCell>
+                  {dynamicColumns?.map((col) => (
+                    <TotalStyledTableCell key={col.columnId} />
+                  ))}
                 </TableRow>
               </TableBody>
             </Table>
@@ -757,17 +787,6 @@ const handleSavePriority = async () => {
               </Grid>
             </Grid>
           </Grid>
-
-          <Grid container sx={{ mt: 2 }} spacing={4}>
-            <Grid item xs={6} sx={{ textAlign: 'center' }}>
-              <Typography variant="body1">Signature Collaborateur</Typography>
-              <Box sx={{ height: '100px', border: '1px solid black' }} />
-            </Grid>
-            <Grid item xs={6} sx={{ textAlign: 'center' }}>
-              <Typography variant="body1">Signature Manager</Typography>
-              <Box sx={{ height: '100px', border: '1px solid black' }} />
-            </Grid>
-          </Grid>
         </Box>
 
         <Dialog open={isModalOpen} onClose={handleModalClose}>
@@ -824,6 +843,20 @@ const handleSavePriority = async () => {
               error={newMaxObjectives > 6}
               helperText={newMaxObjectives > 6 ? 'Maximum 6 objectifs' : ''}
             />
+            <TextField
+              margin="dense"
+              label="Pondération (%)"
+              type="number"
+              fullWidth
+              value={newPonderation || ''}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                setNewPonderation(isNaN(value) ? null : value);
+              }}
+              inputProps={{ min: 0, max: 100, step: 0.01 }}
+              error={newPonderation !== null && (newPonderation < 0 || newPonderation > 100)}
+              helperText={newPonderation !== null && (newPonderation < 0 || newPonderation > 100) ? 'Entre 0 et 100' : ''}
+            />
           </DialogContent>
           <DialogActions>
             <Button onClick={handleAddPriorityModalClose} color="primary">
@@ -832,7 +865,7 @@ const handleSavePriority = async () => {
             <Button
               onClick={handleSavePriority}
               color="primary"
-              disabled={newMaxObjectives > 6 || !newPriorityName.trim()}
+              disabled={newMaxObjectives > 6 || !newPriorityName.trim() || (newPonderation !== null && (newPonderation < 0 || newPonderation > 100))}
             >
               Enregistrer
             </Button>
@@ -848,6 +881,7 @@ const handleSavePriority = async () => {
                   <TableRow>
                     <TableCell>Nom de la Priorité</TableCell>
                     <TableCell>Nombre Max d'Objectifs</TableCell>
+                    <TableCell>Pondération (%)</TableCell>
                     <TableCell>Actif</TableCell>
                   </TableRow>
                 </TableHead>
@@ -881,6 +915,17 @@ const handleSavePriority = async () => {
                         />
                       </TableCell>
                       <TableCell>
+                        <TextField
+                          type="number"
+                          value={priority.ponderation ?? ''}
+                          onChange={(e) => handlePriorityChange(priority.templatePriorityId, 'ponderation', e.target.value)}
+                          fullWidth
+                          inputProps={{ min: 0, max: 100, step: 0.01 }}
+                          error={priority.ponderation !== null && priority.ponderation !== undefined && (priority.ponderation < 0 || priority.ponderation > 100)}
+                          helperText={priority.ponderation !== null && priority.ponderation !== undefined && (priority.ponderation < 0 || priority.ponderation > 100) ? 'Entre 0 et 100' : ''}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Checkbox
                           checked={priority.isActif}
                           onChange={(e) => handlePriorityChange(priority.templatePriorityId, 'isActif', e.target.checked)}
@@ -900,7 +945,7 @@ const handleSavePriority = async () => {
             <Button
               onClick={handleSaveEditedPriorities}
               color="primary"
-              disabled={editedPriorities.some((p) => p.maxObjectives > 6 || !p.name.trim())}
+              disabled={editedPriorities.some((p) => p.maxObjectives > 6 || !p.name.trim() || (p.ponderation !== null && p.ponderation !== undefined && (p.ponderation < 0 || p.ponderation > 100)))}
             >
               Enregistrer
             </Button>

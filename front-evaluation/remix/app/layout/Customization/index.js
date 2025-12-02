@@ -6,12 +6,8 @@ import { useTheme } from '@mui/material/styles';
 import {
     Drawer,
     Fab,
-    FormControl,
-    FormControlLabel,
     Grid,
     IconButton,
-    Radio,
-    RadioGroup,
     Slider,
     Tooltip,
     Typography
@@ -45,6 +41,33 @@ const Customization = () => {
         setOpen(!open);
     };
 
+    // Set font family to Century Gothic on mount and apply enhanced font smoothing for better readability
+    useEffect(() => {
+        dispatch({ type: SET_FONT_FAMILY, fontFamily: `'Century Gothic', sans-serif` });
+
+        // Inject global styles for improved font rendering and readability
+        const style = document.createElement('style');
+        style.textContent = `
+            * {
+                -webkit-font-smoothing: subpixel-antialiased !important;
+                -moz-osx-font-smoothing: grayscale !important;
+                text-rendering: optimizeLegibility !important;
+                font-smooth: always !important;
+                letter-spacing: 0.01em !important;
+            }
+            body {
+                font-family: 'Century Gothic', sans-serif !important;
+                font-weight: 400 !important;
+                line-height: 1.5 !important;
+            }
+        `;
+        document.head.appendChild(style);
+
+        return () => {
+            document.head.removeChild(style);
+        };
+    }, [dispatch]);
+
     // state - border radius
     const [borderRadius, setBorderRadius] = useState(customization.borderRadius);
     const handleBorderRadius = (event, newValue) => {
@@ -54,39 +77,6 @@ const Customization = () => {
     useEffect(() => {
         dispatch({ type: SET_BORDER_RADIUS, borderRadius });
     }, [dispatch, borderRadius]);
-
-    let initialFont;
-    switch (customization.fontFamily) {
-        case `'Inter', sans-serif`:
-            initialFont = 'Inter';
-            break;
-        case `'Poppins', sans-serif`:
-            initialFont = 'Poppins';
-            break;
-        case `'Roboto', sans-serif`:
-        default:
-            initialFont = 'Roboto';
-            break;
-    }
-
-    // state - font family
-    const [fontFamily, setFontFamily] = useState(initialFont);
-    useEffect(() => {
-        let newFont;
-        switch (fontFamily) {
-            case 'Inter':
-                newFont = `'Inter', sans-serif`;
-                break;
-            case 'Poppins':
-                newFont = `'Poppins', sans-serif`;
-                break;
-            case 'Roboto':
-            default:
-                newFont = `'Roboto', sans-serif`;
-                break;
-        }
-        dispatch({ type: SET_FONT_FAMILY, fontFamily: newFont });
-    }, [dispatch, fontFamily]);
 
     return (
         <>
@@ -124,65 +114,24 @@ const Customization = () => {
                 open={open}
                 PaperProps={{
                     sx: {
-                        width: 280
+                        width: 280,
+                        WebkitFontSmoothing: 'subpixel-antialiased',
+                        MozOsxFontSmoothing: 'grayscale',
+                        fontSmooth: 'always',
+                        transform: 'translateZ(0)',
+                        WebkitTransform: 'translateZ(0)',
+                        letterSpacing: '0.01em'
                     }
                 }}
             >
                 <PerfectScrollbar component="div">
                     <Grid container spacing={gridSpacing} sx={{ p: 3 }}>
                         <Grid item xs={12}>
-                            {/* font family */}
-                            <SubCard title="Font Family">
-                                <FormControl>
-                                    <RadioGroup
-                                        aria-label="font-family"
-                                        value={fontFamily}
-                                        onChange={(e) => setFontFamily(e.target.value)}
-                                        name="row-radio-buttons-group"
-                                    >
-                                        <FormControlLabel
-                                            value="Roboto"
-                                            control={<Radio />}
-                                            label="Roboto"
-                                            sx={{
-                                                '& .MuiSvgIcon-root': { fontSize: 28 },
-                                                '& .MuiFormControlLabel-label': {
-                                                    color: theme.palette.grey[900]
-                                                }
-                                            }}
-                                        />
-                                        <FormControlLabel
-                                            value="Poppins"
-                                            control={<Radio />}
-                                            label="Poppins"
-                                            sx={{
-                                                '& .MuiSvgIcon-root': { fontSize: 28 },
-                                                '& .MuiFormControlLabel-label': {
-                                                    color: theme.palette.grey[900]
-                                                }
-                                            }}
-                                        />
-                                        <FormControlLabel
-                                            value="Inter"
-                                            control={<Radio />}
-                                            label="Inter"
-                                            sx={{
-                                                '& .MuiSvgIcon-root': { fontSize: 28 },
-                                                '& .MuiFormControlLabel-label': {
-                                                    color: theme.palette.grey[900]
-                                                }
-                                            }}
-                                        />
-                                    </RadioGroup>
-                                </FormControl>
-                            </SubCard>
-                        </Grid>
-                        <Grid item xs={12}>
                             {/* border radius */}
                             <SubCard title="Border Radius">
                                 <Grid item xs={12} container spacing={2} alignItems="center" sx={{ mt: 2.5 }}>
                                     <Grid item>
-                                        <Typography variant="h6" color="secondary">
+                                        <Typography variant="h6" color="secondary" sx={{ fontWeight: 400, letterSpacing: '0.01em' }}>
                                             4px
                                         </Typography>
                                     </Grid>
@@ -201,13 +150,15 @@ const Customization = () => {
                                             color="secondary"
                                             sx={{
                                                 '& .MuiSlider-valueLabel': {
-                                                    color: 'secondary.light'
+                                                    color: 'secondary.light',
+                                                    fontWeight: 400,
+                                                    letterSpacing: '0.01em'
                                                 }
                                             }}
                                         />
                                     </Grid>
                                     <Grid item>
-                                        <Typography variant="h6" color="secondary">
+                                        <Typography variant="h6" color="secondary" sx={{ fontWeight: 400, letterSpacing: '0.01em' }}>
                                             24px
                                         </Typography>
                                     </Grid>

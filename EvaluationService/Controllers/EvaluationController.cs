@@ -629,14 +629,13 @@ namespace EvaluationService.Controllers
                         TemplatePriorityId = obj.TemplateStrategicPriority.TemplatePriorityId,
                         Name = obj.TemplateStrategicPriority.Name,
                         MaxObjectives = obj.TemplateStrategicPriority.MaxObjectives,
-                        // Ajouter d'autres propriétés si nécessaire
                     },
                     ObjectiveColumnValues = allColumns.Select(column => new ColumnValueDto
                     {
                         ColumnName = column.Name,
                         Value = obj.ObjectiveColumnValues
                                     .FirstOrDefault(ocv => ocv.ColumnId == column.ColumnId)?.Value
-                                    ?? string.Empty // Valeur par défaut si absente
+                                    ?? string.Empty
                     }).ToList()
                 }).ToList();
 

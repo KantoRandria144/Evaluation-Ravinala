@@ -15,6 +15,8 @@ namespace EvaluationService.Models
         [Required]
         public int MaxObjectives { get; set; } = 4;
 
+        public decimal? Ponderation { get; set; }
+
         // Foreign key
         public int TemplateId { get; set; }
 

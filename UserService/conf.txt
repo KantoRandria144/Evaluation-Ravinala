@@ -1,0 +1,19 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=10.0.180.37;Database=VINADB;User ID=sa_vina;Password=S@vnnXdb;TrustServerCertificate=True;"
+  },  
+
+  "Jwt": {
+    "Secret": "c@hristina1234567890@!!c@hristina",
+    "Issuer": "http://10.0.180.37:8087",
+    "Audience": "http://10.0.180.37:8087"
+  },
+
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}

@@ -141,7 +141,8 @@ const Liste = ({ isDataUpdated }) => {
       final: evaluation.final.split('T')[0],
       templateId: evaluation.templateId,
       titre: evaluation.titre,
-      type: evaluation.type
+      type: evaluation.type,
+      classes: evaluation.classes || '' 
     });
   };
 
@@ -163,6 +164,7 @@ const Liste = ({ isDataUpdated }) => {
             final: currentEvaluation.final.split('T')[0],
             templateId: currentEvaluation.templateId,
             type: currentEvaluation.type,
+            classes: currentEvaluation.classes, // Ajouter classes ici
           }
         : null;
 
@@ -174,6 +176,7 @@ const Liste = ({ isDataUpdated }) => {
         final: editableEvaluation.final,
         templateId: editableEvaluation.templateId,
         type: editableEvaluation.type,
+        classes: editableEvaluation.classes, 
       });
 
       await AuditService.logAction(
@@ -378,8 +381,9 @@ const Liste = ({ isDataUpdated }) => {
               <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
                 Titre
               </TableCell>
+              
               <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
-                Classe
+                Type
               </TableCell>
               <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
                 Fixation des objectifs
@@ -411,22 +415,61 @@ const Liste = ({ isDataUpdated }) => {
                   <>
                     {/* --- Mode édition --- */}
                     <TableCell>
-                      <input type="text" name="evalAnnee" value={editableEvaluation.evalAnnee} onChange={handleInputChange} />
-                    </TableCell>
-                    {/* On n'affiche plus le type, juste le titre.
-                        (On peut laisser un <select> pour le type si on veut l'éditer en interne,
-                         ou le retirer totalement si on ne veut plus gérer le type.) */}
-                    <TableCell>
-                      <input type="text" name="titre" value={editableEvaluation.titre} onChange={handleInputChange} placeholder="Titre" />
-                    </TableCell>
-                    <TableCell>
-                      <input type="date" name="fixationObjectif" value={editableEvaluation.fixationObjectif} onChange={handleInputChange} />
+                      <TextField
+                        size="small"
+                        name="evalAnnee"
+                        value={editableEvaluation.evalAnnee}
+                        onChange={handleInputChange}
+                      />
                     </TableCell>
                     <TableCell>
-                      <input type="date" name="miParcours" value={editableEvaluation.miParcours} onChange={handleInputChange} />
+                      <TextField
+                        size="small"
+                        name="titre"
+                        value={editableEvaluation.titre}
+                        onChange={handleInputChange}
+                        placeholder="Titre"
+                      />
+                    </TableCell>
+                    
+                    <TableCell>
+                      <FormControl size="small" fullWidth>
+                        <Select
+                          name="type"
+                          value={editableEvaluation.type || ''}
+                          onChange={handleInputChange}
+                        >
+                          <MenuItem value="Cadre">Cadre</MenuItem>
+                          <MenuItem value="NonCadre">Non-Cadre</MenuItem>
+                        </Select>
+                      </FormControl>
                     </TableCell>
                     <TableCell>
-                      <input type="date" name="final" value={editableEvaluation.final} onChange={handleInputChange} />
+                      <TextField
+                        size="small"
+                        type="date"
+                        name="fixationObjectif"
+                        value={editableEvaluation.fixationObjectif}
+                        onChange={handleInputChange}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="date"
+                        name="miParcours"
+                        value={editableEvaluation.miParcours}
+                        onChange={handleInputChange}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="date"
+                        name="final"
+                        value={editableEvaluation.final}
+                        onChange={handleInputChange}
+                      />
                     </TableCell>
                     <TableCell>{evaluation.etatDesignation || 'N/A'}</TableCell>
                     {/* Boutons Sauvegarder / Annuler */}
@@ -473,11 +516,6 @@ const Liste = ({ isDataUpdated }) => {
                               Clôturer
                             </Button>
                           )}
-                          {/* {evaluation.etatId === cloturer && (
-                            <Button variant="outlined" color="secondary" disabled>
-                              Clôturer
-                            </Button>
-                          )} */}
                           {evaluation.etatId === cloturer && (
                             <Button variant="outlined" color="error" onClick={() => annulerCloturation(evaluation.evalId)}>
                               Annuler la clôture
@@ -487,15 +525,20 @@ const Liste = ({ isDataUpdated }) => {
 
                         <TableCell>
                           <Tooltip title="Éditer">
-                            <IconButton onClick={() => handleEditClick(evaluation)} disabled={evaluation.etatId === cloturer}>
-                              <FontAwesomeIcon
-                                icon={faEdit}
-                                style={{
-                                  color: evaluation.etatId === cloturer ? 'gray' : 'blue',
-                                  fontSize: '1rem'
-                                }}
-                              />
-                            </IconButton>
+                            <span> {/* Correction: wrapper span pour IconButton désactivé */}
+                              <IconButton 
+                                onClick={() => handleEditClick(evaluation)} 
+                                disabled={evaluation.etatId === cloturer}
+                              >
+                                <FontAwesomeIcon
+                                  icon={faEdit}
+                                  style={{
+                                    color: evaluation.etatId === cloturer ? 'gray' : 'blue',
+                                    fontSize: '1rem'
+                                  }}
+                                />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                         </TableCell>
                       </>
@@ -518,7 +561,6 @@ const Liste = ({ isDataUpdated }) => {
         page={currentPage}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-        // ...
       />
     </Paper>
   );
