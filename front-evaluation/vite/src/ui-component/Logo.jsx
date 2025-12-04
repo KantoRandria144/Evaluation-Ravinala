@@ -1,7 +1,7 @@
 // material-ui
 import { useTheme } from '@mui/material/styles';
+import { Typography } from '@mui/material';
 
-import logo from 'assets/images/secondLogo.png';
 import logoRavinala from 'assets/images/logo.jpg';
 
 /**
@@ -20,7 +20,20 @@ const Logo = () => {
   return (
     <>
       <img src={logoRavinala} alt="Vina" width="80" />
-      <img src={logo} alt="Vina" width="50" />
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: 700,
+          fontSize: '15px',
+          marginLeft: '12px',
+          color: theme.palette.primary.main,
+          letterSpacing: '0.5px',
+          textDecoration: 'none',
+          display: 'inline'
+        }}
+      >
+        Vina
+      </Typography>
     </>
   );
 };

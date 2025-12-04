@@ -27,6 +27,8 @@ ehthumbs.db
 /UserService/appsettings.json
 /UserService/bin
 /UserService/Migrations
+/UserService/publish
+/UserService/Properties
 /UserService/obj
 /UserService/obj
 /UserService/.vs/
@@ -36,6 +38,8 @@ ehthumbs.db
 /EvaluationService/Migrations
 /EvaluationService/obj
 /EvaluationService/.vs/
+/EvaluationService/publish
+/EvaluationService/Properties
 
 
 /CommonModels/appsettings.json

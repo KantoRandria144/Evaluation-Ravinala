@@ -40,7 +40,7 @@ namespace UserService.Controllers
             }
 
             var result = await ValidateUser(login.Username, login.Password);
-            if (result.Type == "success")
+          if (result.Type == "success")
             {
                 var token = GenerateJwtTokens(result.User);
 
@@ -67,8 +67,10 @@ namespace UserService.Controllers
                     return Unauthorized(new { result.Message, result.Type });
                 }
                 return BadRequest(new { result.Message, result.Type });
+
             }
         }
+
 
         [HttpPost("logout")]
         public IActionResult Logout()
@@ -83,6 +85,8 @@ namespace UserService.Controllers
             _logger.LogInformation("Déconnexion réussie");
             return Ok(new { message = "Déconnecté avec succès" });
         }
+
+        
 
         private async Task<ValidationResult> ValidateUser(string username, string password)
         {
@@ -107,6 +111,7 @@ namespace UserService.Controllers
                     // Validation temporaire pour tests : Mot de passe fixe "Vina@2025!!!"
                     // En production, remplacez par : bool isValid = context.ValidateCredentials(username, password, ContextOptions.Negotiate);
                     bool isValid = password == "Vina@2025!!!";
+
 
                     if (isValid)
                     {
@@ -151,6 +156,7 @@ namespace UserService.Controllers
                         {
                             return new ValidationResult { Message = "Vous ne pouvez pas accéder. Veuillez contacter l'administrateur.", Type = "type_user_missing" };
                         }
+
 
                         return new ValidationResult { Message = "Success", Type = "success", User = userConnected };
                     }

@@ -437,7 +437,7 @@ const ListeUtilisateur = () => {
             <TextField label="Nom ou Email" variant="outlined" fullWidth value={searchTerm} onChange={handleSearchChange} />
           </Grid>
           <Grid item xs={12} md={2}>
-            <TextField label="Département" variant="outlined" fullWidth value={departmentFilter} onChange={handleDepartmentChange} />
+            <TextField label="Direction" variant="outlined" fullWidth value={departmentFilter} onChange={handleDepartmentChange} />
           </Grid>
           <Grid item xs={12} md={2}>
             <FormControl fullWidth variant="outlined">
@@ -479,7 +479,7 @@ const ListeUtilisateur = () => {
               </TableCell>
               <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>Email</TableCell>
               <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
-                Département
+                Direction
               </TableCell>
               <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
                 Type
