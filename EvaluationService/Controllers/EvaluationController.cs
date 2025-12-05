@@ -3415,7 +3415,328 @@ namespace EvaluationService.Controllers
             }
         }
 
+        [HttpPost("updateResults")]
+        public async Task<IActionResult> UpdateResults([FromBody] UpdateResultsRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return BadRequest(new { Message = "Les données de mise à jour sont requises." });
+                }
 
+                if (!Enum.TryParse<FormType>(request.Type, true, out var formType))
+                {
+                    return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
+                }
+
+                // Récupérer l'ID de l'évaluation en cours pour le type spécifié
+                var evaluationId = await _context.Evaluations
+                    .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                    .Select(e => e.EvalId)
+                    .FirstOrDefaultAsync();
+
+                if (evaluationId == 0)
+                {
+                    return NotFound(new { Message = $"Aucune évaluation en cours pour le type {request.Type}." });
+                }
+
+                // Récupérer l'ID de l'évaluation utilisateur
+                var userEvalId = await GetUserEvalIdAsync(evaluationId, request.UserId);
+                if (userEvalId == null)
+                {
+                    return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
+                }
+
+                // Selon le type d'évaluation, traiter les données différemment
+                if (formType == FormType.Cadre)
+                {
+                    // Traitement pour les cadres - mise à jour des objectifs
+                    return await UpdateCadreResults(userEvalId.Value, request);
+                }
+                else if (formType == FormType.NonCadre)
+                {
+                    // Traitement pour les non-cadres - mise à jour des indicateurs
+                    return await UpdateNonCadreResults(userEvalId.Value, request);
+                }
+                else
+                {
+                    return BadRequest(new { Message = "Type d'évaluation non supporté." });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la mise à jour des résultats");
+                return StatusCode(500, new { Message = "Une erreur est survenue lors de la mise à jour des résultats.", Details = ex.Message });
+            }
+        }
+
+        private async Task<IActionResult> UpdateCadreResults(int userEvalId, UpdateResultsRequest request)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                if (request.Objectives == null || !request.Objectives.Any())
+                {
+                    return BadRequest(new { Message = "Aucun objectif fourni pour la mise à jour." });
+                }
+
+                // Récupérer tous les objectifs existants pour cet utilisateur
+                var existingObjectives = await _context.UserObjectives
+                    .Where(uo => uo.UserEvalId == userEvalId)
+                    .Include(uo => uo.ObjectiveColumnValues)
+                    .ToListAsync();
+
+                // Mettre à jour chaque objectif
+                foreach (var objectiveRequest in request.Objectives)
+                {
+                    var existingObjective = existingObjectives.FirstOrDefault(o => o.ObjectiveId == objectiveRequest.ObjectiveId);
+                    
+                    if (existingObjective != null)
+                    {
+                        // Mettre à jour les propriétés de base
+                        if (!string.IsNullOrEmpty(objectiveRequest.Description))
+                            existingObjective.Description = objectiveRequest.Description;
+                        
+                        if (objectiveRequest.Weighting.HasValue)
+                            existingObjective.Weighting = objectiveRequest.Weighting.Value;
+                        
+                        if (!string.IsNullOrEmpty(objectiveRequest.ResultIndicator))
+                            existingObjective.ResultIndicator = objectiveRequest.ResultIndicator;
+                        
+                        if (objectiveRequest.Result.HasValue)
+                            existingObjective.Result = objectiveRequest.Result.Value;
+
+                        // CORRECTION: Utiliser DynamicColumns au lieu de ColumnValues
+                        // Mettre à jour les colonnes dynamiques
+                        if (objectiveRequest.DynamicColumns != null && objectiveRequest.DynamicColumns.Any())
+                        {
+                            foreach (var column in objectiveRequest.DynamicColumns)
+                            {
+                                var existingColumnValue = existingObjective.ObjectiveColumnValues
+                                    .FirstOrDefault(cv => cv.ObjectiveColumn.Name == column.ColumnName);
+                                
+                                if (existingColumnValue != null)
+                                {
+                                    existingColumnValue.Value = column.Value;
+                                }
+                                else
+                                {
+                                    // Chercher la colonne dans la base de données
+                                    var columnEntity = await _context.ObjectiveColumns
+                                        .FirstOrDefaultAsync(c => c.Name == column.ColumnName);
+                                    
+                                    if (columnEntity != null)
+                                    {
+                                        var newColumnValue = new ObjectiveColumnValue
+                                        {
+                                            ObjectiveId = existingObjective.ObjectiveId,
+                                            ColumnId = columnEntity.ColumnId,
+                                            Value = column.Value
+                                        };
+                                        _context.ObjectiveColumnValues.Add(newColumnValue);
+                                    }
+                                }
+                            }
+                        }
+
+                        _context.UserObjectives.Update(existingObjective);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // Notifier le manager si nécessaire
+                try
+                {
+                    var manager = await GetManagerByUserIdAsync(request.UserId);
+                    var user = await GetUserDetails(request.UserId);
+
+                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
+                    {
+                        var message = $"{user.Name} a mis à jour ses résultats d'évaluation";
+
+                        var notification = new Notification
+                        {
+                            UserId = manager.Id,
+                            SenderId = request.UserId,
+                            SenderMatricule = user.Matricule,
+                            Message = message,
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        };
+
+                        _context.Notifications.Add(notification);
+                        await _context.SaveChangesAsync();
+
+                        NotificationService.Notify(manager.Id, notification);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erreur lors de la notification du manager");
+                }
+
+                return Ok(new { Message = "Résultats mis à jour avec succès." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Erreur lors de la mise à jour des résultats cadre");
+                throw;
+            }
+        }
+
+        private async Task<IActionResult> UpdateNonCadreResults(int userEvalId, UpdateResultsRequest request)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                if (request.Indicators == null || !request.Indicators.Any())
+                {
+                    return BadRequest(new { Message = "Aucun indicateur fourni pour la mise à jour." });
+                }
+
+                // Récupérer tous les indicateurs existants pour cet utilisateur
+                var existingIndicators = await _context.UserIndicators
+                    .Where(ui => ui.UserEvalId == userEvalId)
+                    .Include(ui => ui.UserIndicatorResults)
+                    .ToListAsync();
+
+                // Mettre à jour chaque indicateur
+                foreach (var indicatorRequest in request.Indicators)
+                {
+                    var existingIndicator = existingIndicators.FirstOrDefault(i => i.IndicatorId == indicatorRequest.IndicatorId);
+                    
+                    if (existingIndicator != null)
+                    {
+                        // Mettre à jour le nom de l'indicateur
+                        if (!string.IsNullOrEmpty(indicatorRequest.Name))
+                            existingIndicator.Name = indicatorRequest.Name;
+
+                        // Mettre à jour les résultats
+                        if (indicatorRequest.Results != null && indicatorRequest.Results.Any())
+                        {
+                            // Supprimer les anciens résultats
+                            var oldResults = existingIndicator.UserIndicatorResults.ToList();
+                            if (oldResults.Any())
+                            {
+                                _context.UserIndicatorResults.RemoveRange(oldResults);
+                            }
+
+                            // Ajouter les nouveaux résultats
+                            foreach (var result in indicatorRequest.Results)
+                            {
+                                var newResult = new UserIndicatorResult
+                                {
+                                    UserIndicatorId = existingIndicator.UserIndicatorId,
+                                    ResultText = result.ResultText,
+                                    Result = result.Result
+                                };
+                                _context.UserIndicatorResults.Add(newResult);
+                            }
+                        }
+
+                        _context.UserIndicators.Update(existingIndicator);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // Notifier le manager si nécessaire
+                try
+                {
+                    var manager = await GetManagerByUserIdAsync(request.UserId);
+                    var user = await GetUserDetails(request.UserId);
+
+                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
+                    {
+                        var message = $"{user.Name} a mis à jour ses résultats d'évaluation";
+
+                        var notification = new Notification
+                        {
+                            UserId = manager.Id,
+                            SenderId = request.UserId,
+                            SenderMatricule = user.Matricule,
+                            Message = message,
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        };
+
+                        _context.Notifications.Add(notification);
+                        await _context.SaveChangesAsync();
+
+                        NotificationService.Notify(manager.Id, notification);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erreur lors de la notification du manager");
+                }
+
+                return Ok(new { Message = "Résultats mis à jour avec succès." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Erreur lors de la mise à jour des résultats non-cadre");
+                throw;
+            }
+        }
+
+        public class UpdateResultsRequest
+        {
+            public string UserId { get; set; }
+            public string Type { get; set; } // "Cadre" ou "NonCadre"
+            
+            // Pour les cadres
+            public List<ObjectiveUpdateDto> Objectives { get; set; }
+            
+            // Pour les non-cadres
+            public List<IndicatorUpdateDto> Indicators { get; set; }
+        }
+
+        public class ObjectiveUpdateDto
+        {
+            public int ObjectiveId { get; set; }
+            public string Description { get; set; }
+            public decimal? Weighting { get; set; }
+            public string ResultIndicator { get; set; }
+            public decimal? Result { get; set; }
+            
+            // Propriété principale
+            public List<ColumnValueUpdateDto> DynamicColumns { get; set; }
+            
+            // Alias pour compatibilité
+            public List<ColumnValueUpdateDto> ColumnValues 
+            { 
+                get => DynamicColumns; 
+                set => DynamicColumns = value; 
+            }
+        }
+
+        public class IndicatorUpdateDto
+        {
+            public int IndicatorId { get; set; }
+            public string Name { get; set; }
+            public List<ResultUpdateDto> Results { get; set; }
+        }
+
+        public class ResultUpdateDto
+        {
+            public string ResultText { get; set; }
+            public decimal Result { get; set; }
+        }
+
+        public class ColumnValueUpdateDto  
+        {
+            public string ColumnName { get; set; }
+            public string Value { get; set; }
+        }
         public class MiParcoursDataDto
         {
             public List<CompetenceDto> Competences { get; set; }

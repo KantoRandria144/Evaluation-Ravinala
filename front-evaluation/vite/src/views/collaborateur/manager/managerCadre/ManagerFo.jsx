@@ -605,9 +605,8 @@ function ManagerFo() {
         <MainCard sx={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: 'background.paper' }}>
           <Grid container alignItems="center" justifyContent="space-between">
             <Grid item xs={12} md={8}>
-              <Typography variant="subtitle2">Évaluation ({evaluationYear})</Typography>
               <Typography variant="h3">
-                Période actuelle{evaluationYear ? ` (${evaluationYear})` : ''}: <span style={{ color: '#3949AB' }}>{currentPeriod}</span>
+                <span>{currentPeriod} - {evaluationYear}</span>
               </Typography>
               <Grid container spacing={2} sx={{ mt: 1 }} alignItems="center">
                 <Grid item xs={12}>

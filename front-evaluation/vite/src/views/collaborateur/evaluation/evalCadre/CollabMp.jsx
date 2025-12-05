@@ -1,18 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { formulaireInstance } from '../../../../axiosConfig';
-import MainCard from 'ui-component/cards/MainCard';
 import {
   Box,
   TextField,
   Typography,
-  Stepper,
-  Step,
-  StepLabel,
   Button,
   Card,
   CardContent,
   Grid,
-  Paper,
   Alert,
   Table,
   TableCell,
@@ -20,16 +15,13 @@ import {
   TableHead,
   TableRow,
   TableBody,
-  Divider,
-  InputAdornment,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  InputAdornment
 } from '@mui/material';
-import { motion, AnimatePresence } from 'framer-motion';
-import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
-import { IconTargetArrow } from '@tabler/icons-react';
+import { IconTargetArrow, IconEdit, IconCheck, IconX } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
 function CollabMp() {
@@ -43,19 +35,14 @@ function CollabMp() {
   const [currentPeriod, setCurrentPeriod] = useState('');
   const [hasOngoingEvaluation, setHasOngoingEvaluation] = useState(false);
   const [template, setTemplate] = useState({ templateStrategicPriorities: [] });
-  const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [noObjectivesFound, setNoObjectivesFound] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
-  const [openSignatureModal, setOpenSignatureModal] = useState(false);
-  const [signatureFile, setSignatureFile] = useState(null);
-
-  // Nouveau state pour gérer l'affichage tableau vs formulaire
-  const [viewMode, setViewMode] = useState('table'); // 'table' ou 'form'
-  const [allResultsAreZero, setAllResultsAreZero] = useState(false);
-
-  const steps = template.templateStrategicPriorities.map((priority) => priority.name);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedResults, setEditedResults] = useState({});
+  const [openConfirmModal, setOpenConfirmModal] = useState(false);
+  const [openValidationConfirmModal, setOpenValidationConfirmModal] = useState(false);
+  const [isManagerValidation, setIsManagerValidation] = useState(false);
 
   // Fetch fonctions...
   const fetchCadreTemplateId = async () => {
@@ -73,10 +60,8 @@ function CollabMp() {
         params: { type: 'Cadre' }
       });
       setHasOngoingEvaluation(response.data.length > 0);
-      if (response.data.length > 0) {
-        const evaluationId = response.data[0].evalId;
-        setEvalId(evaluationId);
-      }
+      const evaluationId = response.data[0].evalId;
+      setEvalId(evaluationId);
     } catch (error) {
       console.error('Erreur lors de la vérification des évaluations:', error);
     }
@@ -113,122 +98,221 @@ function CollabMp() {
     }
   };
 
+  // Fonction pour rafraîchir les objectifs
+  const refreshUserObjectives = async () => {
+    if (evalId && userId) {
+      try {
+        const objectives = await fetchUserObjectives(evalId, userId);
+        if (objectives && objectives.length > 0) {
+          setUserObjectives(objectives);
+          
+          const initialEditedResults = {};
+          objectives.forEach(obj => {
+            if (obj.objectiveId) {
+              initialEditedResults[obj.objectiveId] = obj.result !== null && obj.result !== undefined ? obj.result.toString() : '';
+            }
+          });
+          setEditedResults(initialEditedResults);
+
+          setTemplate((prevTemplate) => {
+            const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
+              const priorityObjectives = objectives.filter((obj) => obj.templateStrategicPriority.name === priority.name);
+
+              return {
+                ...priority,
+                objectives: priorityObjectives.map((obj) => ({
+                  objectiveId: obj.objectiveId,
+                  description: obj.description || '',
+                  weighting: obj.weighting || '',
+                  resultIndicator: obj.resultIndicator || '',
+                  result: obj.result || '',
+                  dynamicColumns:
+                    obj.objectiveColumnValues?.map((col) => ({
+                      columnName: col.columnName,
+                      value: col.value || ''
+                    })) || []
+                }))
+              };
+            });
+
+            return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
+          });
+          setNoObjectivesFound(false);
+        } else {
+          setNoObjectivesFound(true);
+        }
+      } catch (error) {
+        console.error('Erreur lors du rafraîchissement des objectifs.', error);
+      }
+    }
+  };
+
+  // Fonction pour vérifier si le manager a validé
+  const checkManagerValidationStatus = async () => {
+    try {
+      const response = await formulaireInstance.get('/Evaluation/getHistoryMidtermeByUser', {
+        params: {
+          userId: userId,
+          type: typeUser
+        }
+      });
+
+      if (response.data && response.data.length > 0) {
+        const managerValidation = response.data.find((entry) => 
+          entry.validatedBy && entry.validatedBy !== userId
+        );
+        setIsManagerValidation(!!managerValidation);
+      } else {
+        setIsManagerValidation(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification de la validation manager :', error);
+      setIsManagerValidation(false);
+    }
+  };
+
   useEffect(() => {
     const loadUserObjectives = async () => {
       if (evalId && userId) {
-        try {
-          const objectives = await fetchUserObjectives(evalId, userId);
-          if (objectives && objectives.length > 0) {
-            setUserObjectives(objectives);
-            
-            // Vérifier si tous les résultats sont à 0
-            const allZero = objectives.every((obj) => {
-              const result = parseFloat(obj.result);
-              return isNaN(result) || result === 0;
-            });
-            setAllResultsAreZero(allZero);
-            
-            // Si tous les résultats sont à 0, passer en mode formulaire
-            if (allZero) {
-              setViewMode('form');
-            }
-            
-            setTemplate((prevTemplate) => {
-              const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
-                const priorityObjectives = objectives.filter((obj) => obj.templateStrategicPriority?.name === priority.name);
-
-                return {
-                  ...priority,
-                  objectives: priorityObjectives.map((obj) => ({
-                    objectiveId: obj.objectiveId,
-                    description: obj.description || '',
-                    weighting: obj.weighting || '',
-                    resultIndicator: obj.resultIndicator || '',
-                    result: obj.result || '0', // Initialiser à "0" si vide
-                    dynamicColumns:
-                      obj.objectiveColumnValues?.map((col) => ({
-                        columnName: col.columnName,
-                        value: col.value || ''
-                      })) || []
-                  }))
-                };
-              });
-
-              return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
-            });
-            setNoObjectivesFound(false);
-          } else {
-            console.log('Aucun objectif utilisateur trouvé.');
-            setNoObjectivesFound(true);
-          }
-        } catch (error) {
-          console.error('Erreur lors de la récupération des objectifs.', error);
-        } finally {
-          setIsLoading(false);
-        }
+        await refreshUserObjectives();
       }
     };
 
     loadUserObjectives();
   }, [evalId, userId]);
 
-  // Handle objective change - version formulaire pour la saisie des résultats
-  const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
-    setTemplate((prevTemplate) => {
-      const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
-        if (priority.name !== priorityName) return priority;
+  const handleResultChange = (objectiveId, value) => {
+    setEditedResults(prev => ({
+      ...prev,
+      [objectiveId]: value
+    }));
+  };
 
-        const updatedObjectives = [...(priority.objectives || [])];
+  const handleStartEditing = () => {
+    setIsEditing(true);
+  };
 
-        if (!updatedObjectives[objectiveIndex]) {
-          updatedObjectives[objectiveIndex] = {
-            description: '',
-            weighting: '',
-            resultIndicator: '',
-            result: '0',
-            dynamicColumns: []
-          };
-        }
-
-        const objective = { ...updatedObjectives[objectiveIndex] };
-
-        if (columnIndex !== null) {
-          if (!Array.isArray(objective.dynamicColumns)) {
-            objective.dynamicColumns = [];
-          }
-          if (!objective.dynamicColumns[columnIndex]) {
-            objective.dynamicColumns[columnIndex] = {
-              columnName: '',
-              value: ''
-            };
-          }
-          objective.dynamicColumns[columnIndex] = {
-            ...objective.dynamicColumns[columnIndex],
-            value
-          };
-        } else {
-          if (field === 'result') {
-            // Valider le format du résultat (pourcentage entre 0 et 100)
-            let parsedValue = value.replace(',', '.');
-            if (parsedValue === '' || parsedValue === '-') {
-              objective[field] = parsedValue;
-            } else if (/^\d{0,3}(\.\d{0,2})?$/.test(parsedValue)) {
-              const numValue = parseFloat(parsedValue);
-              if (numValue >= 0 && numValue <= 100) {
-                objective[field] = parsedValue;
-              }
-            }
-          } else {
-            objective[field] = value;
-          }
-        }
-
-        updatedObjectives[objectiveIndex] = objective;
-        return { ...priority, objectives: updatedObjectives };
-      });
-
-      return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
+  const handleCancelEditing = () => {
+    const originalResults = {};
+    userObjectives.forEach(obj => {
+      if (obj.objectiveId) {
+        originalResults[obj.objectiveId] = obj.result !== null && obj.result !== undefined ? obj.result.toString() : '';
+      }
     });
+    setEditedResults(originalResults);
+    setIsEditing(false);
+  };
+
+  const handleSaveResults = async () => {
+    try {
+      // Déterminer si c'est une évaluation Cadre ou NonCadre
+      const isCadreEvaluation = typeUser === "Cadre" || typeUser === "cadre";
+      
+      // Préparer la requête selon le type d'évaluation
+      let requestData;
+      
+      if (isCadreEvaluation) {
+        // Format pour les cadres
+        requestData = {
+          userId: userId,
+          type: "Cadre",
+          objectives: userObjectives.map(obj => ({
+            objectiveId: obj.objectiveId,
+            description: obj.description || '',
+            weighting: obj.weighting || 0,
+            resultIndicator: obj.resultIndicator || '',
+            result: editedResults[obj.objectiveId] === '' ? 0 : parseFloat(editedResults[obj.objectiveId]) || obj.result,
+            dynamicColumns: obj.objectiveColumnValues?.map(col => ({
+              columnName: col.columnName,
+              value: col.value || ''
+            })) || []
+          })),
+          indicators: [] // Champ requis mais vide pour les cadres
+        };
+      } else {
+        // Format pour les non-cadres (si jamais vous avez besoin de cette fonctionnalité)
+        requestData = {
+          userId: userId,
+          type: "NonCadre",
+          objectives: [], // Champ requis mais vide pour les non-cadres
+          indicators: [] // Vous devrez remplir ceci si vous gérez les non-cadres
+        };
+      }
+
+      const response = await formulaireInstance.post('/Evaluation/updateResults', requestData);
+
+      if (response.status === 200) {
+        const message = response.data?.Message || 'Résultats mis à jour avec succès !';
+        alert(message);
+        
+        // Rafraîchir les données depuis l'API pour s'assurer que tout est synchronisé
+        await refreshUserObjectives();
+        
+        setIsEditing(false);
+        setOpenConfirmModal(false);
+        
+      } else {
+        alert('Réponse inattendue du serveur.');
+      }
+      
+    } catch (error) {
+      console.error('Erreur détaillée:', error);
+      
+      // Gestion améliorée des erreurs
+      if (error.response) {
+        const { status, data } = error.response;
+        
+        if (status === 400) {
+          if (data.errors) {
+            // Erreurs de validation ASP.NET
+            const validationErrors = Object.entries(data.errors)
+              .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+              .join('\n');
+            alert(`Erreurs de validation:\n${validationErrors}`);
+          } else {
+            alert(data.title || `Erreur ${status}: Requête invalide`);
+          }
+        } else if (status === 404) {
+          alert('Évaluation non trouvée. Vérifiez que l\'évaluation est en cours.');
+        } else if (status === 500) {
+          alert('Erreur serveur. Contactez l\'administrateur.');
+        } else {
+          alert(`Erreur ${status}: ${data?.message || 'Erreur inconnue'}`);
+        }
+      } else if (error.request) {
+        alert('Aucune réponse du serveur. Vérifiez votre connexion réseau.');
+      } else {
+        alert('Erreur de configuration de la requête.');
+      }
+    }
+  };
+
+  const handleConfirmSave = () => {
+    // Valider que tous les résultats sont des nombres valides ou vides
+    const invalidEntries = Object.entries(editedResults).filter(([id, value]) => {
+      if (value === '' || value === null || value === undefined) {
+        return false; // Vide est acceptable
+      }
+      
+      // Remplacer les virgules par des points
+      const normalizedValue = value.toString().replace(',', '.');
+      
+      // Vérifier le format numérique
+      const numValue = parseFloat(normalizedValue);
+      if (isNaN(numValue)) {
+        return true;
+      }
+      
+      // Vérifier la plage
+      return numValue < 0 || numValue > 100;
+    });
+
+    if (invalidEntries.length > 0) {
+      alert('Veuillez entrer des valeurs numériques valides entre 0 et 100 (ou laisser vide).');
+      return;
+    }
+
+    setOpenConfirmModal(true);
   };
 
   const checkIfValidated = async () => {
@@ -241,11 +325,14 @@ function CollabMp() {
       });
 
       if (response.data && response.data.length > 0) {
-        const hasValidatedEntry = response.data.some((entry) => entry.validatedBy);
+        const hasValidatedEntry = response.data.some((entry) => entry.validatedBy === userId);
         setIsValidated(hasValidatedEntry);
+      } else {
+        setIsValidated(false);
       }
     } catch (error) {
       console.error('Erreur lors de la vérification de la validation :', error);
+      setIsValidated(false);
     }
   };
 
@@ -253,36 +340,45 @@ function CollabMp() {
     fetchCadreTemplateId();
     checkOngoingEvaluation();
     checkIfValidated();
+    checkManagerValidationStatus();
   }, []);
 
   useEffect(() => {
-    if (templateId) {
-      fetchTemplate();
-    }
+    fetchTemplate();
   }, [templateId]);
 
-  // Valider les résultats saisis
-  const validateResults = async () => {
-    try {
-      // Vérifier que tous les résultats sont valides
-      let hasError = false;
-      
-      template.templateStrategicPriorities.forEach((priority) => {
-        priority.objectives?.forEach((objective, index) => {
-          const result = parseFloat(objective.result);
-          if (isNaN(result) || result < 0 || result > 100) {
-            alert(`Veuillez entrer un résultat valide (entre 0 et 100) pour l'objectif ${index + 1} de "${priority.name}"`);
-            hasError = true;
-          }
-        });
-      });
-      
-      if (hasError) return;
+  const validateMitermObjectifHistory = async () => {
+    if (isValidated) {
+      alert('Vous avez déjà validé les objectifs.');
+      return;
+    }
 
-      // Préparer les données pour l'envoi
+    // Vérifier si des résultats sont manquants
+    const missingResults = userObjectives.filter(obj => 
+      !obj.result && obj.result !== 0
+    );
+
+    if (missingResults.length > 0) {
+      alert('Veuillez d\'abord ajouter vos résultats avant de valider.');
+      return;
+    }
+
+    // Vérifier si tous les résultats sont dans la plage 0-100
+    const invalidResults = userObjectives.filter(obj => {
+      const result = parseFloat(obj.result);
+      return isNaN(result) || result < 0 || result > 100;
+    });
+
+    if (invalidResults.length > 0) {
+      alert('Certains résultats ne sont pas dans la plage valide (0-100). Veuillez corriger avant de valider.');
+      return;
+    }
+
+    try {
       const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
-        (priority.objectives || []).map((objective) => ({
-          objectiveId: objective.objectiveId,
+        priority.objectives.map((objective) => ({
+          priorityId: priority.templatePriorityId,
+          priorityName: priority.name,
           description: objective.description || '',
           weighting: parseFloat(objective.weighting) || 0,
           resultIndicator: objective.resultIndicator || '',
@@ -295,7 +391,11 @@ function CollabMp() {
         }))
       );
 
-      // Envoyer les résultats
+      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator && (obj.result || obj.result === 0))) {
+        alert('Veuillez remplir au moins un objectif avec tous les champs requis (y compris les résultats).');
+        return;
+      }
+
       const response = await formulaireInstance.post('/Evaluation/validateMitermObjectifHistory', objectivesData, {
         params: {
           userId: userId,
@@ -303,7 +403,7 @@ function CollabMp() {
         }
       });
 
-      alert(response.data.message || 'Résultats validés avec succès !');
+      alert(response.data.message || 'Objectifs validés avec succès !');
       window.location.reload();
     } catch (error) {
       if (error.response?.data?.message) {
@@ -311,454 +411,413 @@ function CollabMp() {
       } else {
         alert('Une erreur est survenue lors de la validation.');
       }
-      console.error('Erreur lors de la validation des résultats :', error);
+      console.error('Erreur lors de la validation des objectifs :', error);
     }
   };
 
-  // Mettre à jour les résultats (sans validation finale)
-  const updateResults = async () => {
-    try {
-      // Vérifier que tous les résultats sont valides
-      let hasError = false;
-      
-      template.templateStrategicPriorities.forEach((priority) => {
-        priority.objectives?.forEach((objective, index) => {
-          const result = parseFloat(objective.result);
-          if (isNaN(result) || result < 0 || result > 100) {
-            alert(`Veuillez entrer un résultat valide (entre 0 et 100) pour l'objectif ${index + 1} de "${priority.name}"`);
-            hasError = true;
-          }
-        });
-      });
-      
-      if (hasError) return;
+  const isObjectiveUndefined = (objective) => {
+    return (
+      (!objective.description || objective.description === 'Non défini') &&
+      (!objective.weighting || objective.weighting === 0) &&
+      (!objective.resultIndicator || objective.resultIndicator === 'Non défini') &&
+      (!objective.result && objective.result !== 0) &&
+      (!objective.dynamicColumns || objective.dynamicColumns.every((column) => !column.value || column.value === 'Non défini'))
+    );
+  };
 
-      const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
-        (priority.objectives || []).map((objective) => ({
-          objectiveId: objective.objectiveId,
-          result: parseFloat(objective.result) || 0,
-          objectiveColumnValues:
-            objective.dynamicColumns?.map((col) => ({
-              columnName: col.columnName,
-              value: col.value
-            })) || []
-        }))
+  const isResultDefined = (result) => {
+    return result !== undefined && result !== null && result !== '';
+  };
+
+  // Fonction pour formater la valeur d'entrée
+  const formatInputValue = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    
+    const strValue = value.toString();
+    // Remplacer la virgule par un point pour le parsing
+    const normalized = strValue.replace(',', '.');
+    
+    // Vérifier si c'est un nombre
+    if (/^-?\d*\.?\d*$/.test(normalized)) {
+      // Limiter à 2 décimales
+      const parts = normalized.split('.');
+      if (parts[1] && parts[1].length > 2) {
+        return parts[0] + '.' + parts[1].substring(0, 2);
+      }
+      return normalized;
+    }
+    return value;
+  };
+
+  const renderResultCell = (objective) => {
+    if (isEditing) {
+      return (
+        <TextField
+          type="text"
+          inputProps={{ 
+            style: { 
+              textAlign: 'center',
+              padding: '8px'
+            }
+          }}
+          value={formatInputValue(editedResults[objective.objectiveId] || '')}
+          onChange={(e) => {
+            let value = e.target.value;
+            // Permettre les nombres, points et virgules
+            if (value === '' || /^[\d,.]*$/.test(value)) {
+              handleResultChange(objective.objectiveId, value);
+            }
+          }}
+          onBlur={(e) => {
+            let value = e.target.value.trim();
+            if (value === '') {
+              handleResultChange(objective.objectiveId, '');
+              return;
+            }
+            
+            // Remplacer la virgule par un point
+            value = value.replace(',', '.');
+            
+            // Vérifier si c'est un nombre valide
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+              // Limiter à la plage 0-100 et 2 décimales
+              const clampedValue = Math.min(100, Math.max(0, numValue));
+              const formattedValue = clampedValue.toFixed(2);
+              handleResultChange(objective.objectiveId, formattedValue);
+            }
+          }}
+          variant="outlined"
+          size="small"
+          sx={{
+            width: '100px',
+            '& .MuiOutlinedInput-root': {
+              height: '40px'
+            }
+          }}
+          InputProps={{
+            endAdornment: <InputAdornment position="end">%</InputAdornment>,
+          }}
+          placeholder="0-100"
+        />
       );
-
-      const response = await formulaireInstance.put('/Evaluation/updateMidtermResults', objectivesData, {
-        params: {
-          userId: userId
-        }
-      });
-
-      alert(response.data.message || 'Résultats mis à jour avec succès !');
-      setAllResultsAreZero(false);
-      setViewMode('table');
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour des résultats :', error);
-      alert(error.response?.data?.message || 'Erreur lors de la mise à jour');
+    } else {
+      const resultValue = objective.result;
+      const hasResult = resultValue !== undefined && resultValue !== null && resultValue !== '';
+      const numericResult = parseFloat(resultValue);
+      const isHigh = !isNaN(numericResult) && numericResult >= 50;
+      
+      return (
+        <Box
+          sx={{
+            backgroundColor: hasResult ? (isHigh ? '#E8EAF6' : 'rgba(244, 67, 54, 0.1)') : '#f5f5f5',
+            color: hasResult ? (isHigh ? 'primary.main' : 'error.main') : 'text.secondary',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            display: 'inline-block',
+            minWidth: '80px',
+            border: hasResult ? 'none' : '1px dashed #ccc'
+          }}
+        >
+          <Typography>
+            {hasResult ? `${resultValue} %` : 'Non saisi'}
+          </Typography>
+        </Box>
+      );
     }
   };
-
-  // Fonction pour vérifier si un objectif est vide ou non défini
-  const isObjectiveValid = (objective) => {
-    return (
-      objective &&
-      objective.description && 
-      objective.description.trim() !== '' &&
-      objective.description !== 'Non défini' &&
-      objective.weighting &&
-      parseFloat(objective.weighting) > 0
-    );
-  };
-
-  const handleNext = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
-  };
-
-  const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
-  };
-
-  // Fonctions pour la modal de signature
-  const handleOpenSignatureModal = () => {
-    setOpenSignatureModal(true);
-  };
-
-  const handleCloseSignatureModal = () => {
-    setOpenSignatureModal(false);
-  };
-
-  const handleSignatureFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSignatureFile(e.target.files[0]);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <Typography>Chargement...</Typography>
-      </Box>
-    );
-  }
 
   return (
-    <Box p={3}>
-      {noObjectivesFound ? (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          Vous n'avez pas encore validé vos objectifs
-        </Alert>
-      ) : userObjectives.length === 0 ? (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          Aucun objectif trouvé
-        </Alert>
-      ) : (
-        <>
-          {/* Boutons pour changer de mode d'affichage */}
-          {!isValidated && (
-            <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
-              <Button
-                variant={viewMode === 'table' ? 'contained' : 'outlined'}
-                onClick={() => setViewMode('table')}
-              >
-                Vue Tableau
-              </Button>
-              <Button
-                variant={viewMode === 'form' ? 'contained' : 'outlined'}
-                onClick={() => setViewMode('form')}
-                color="primary"
-              >
-                Saisir les Résultats
-              </Button>
-            </Box>
-          )}
-
-          {viewMode === 'table' ? (
-            // AFFICHAGE TABLEAU (Lecture seule)
-            template.templateStrategicPriorities.map((priority, priorityIndex) => {
-              // Filtrer les objectifs valides pour cette priorité
-              const validObjectives = (priority.objectives || []).filter(isObjectiveValid);
-              
-              // Si aucun objectif valide, ne pas afficher cette priorité
-              if (validObjectives.length === 0) {
-                return null;
-              }
-
-              return (
-                <Card key={priorityIndex} sx={{ mb: 4 }}>
-                  <CardContent>
-                    <Typography
-                      variant="h5"
-                      gutterBottom
-                      sx={{
-                        marginBottom: '20px',
-                        backgroundColor: '#e8eaf6',
-                        padding: 3,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      {priority.name}
-                      <IconTargetArrow style={{ color: '#3f51b5' }} />
-                    </Typography>
-
-                    <Grid container spacing={3}>
-                      <Grid item xs={12}>
-                        <TableContainer component="div">
-                          <Table aria-label={`tableau pour ${priority.name}`} sx={{ border: '1px solid #e0e0e0', borderRadius: '4px' }}>
-                            <TableHead>
-                              <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#333333', textAlign: 'left', borderRight: '1px solid rgba(224, 224, 224, 1)', width: '25%' }}>
-                                  Objectif
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#333333', textAlign: 'left', borderRight: '1px solid rgba(224, 224, 224, 1)', width: '10%' }}>
-                                  Pondération
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#333333', textAlign: 'left', borderRight: '1px solid rgba(224, 224, 224, 1)', width: '25%' }}>
-                                  Indicateur de Résultat
-                                </TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', color: '#333333', textAlign: 'left', borderRight: '1px solid rgba(224, 224, 224, 1)', width: '10%' }}>
-                                  Résultat
-                                </TableCell>
-                                {validObjectives[0]?.dynamicColumns?.map((column, colIndex) => (
-                                  <TableCell key={colIndex} sx={{ fontWeight: 'bold', color: '#333333', textAlign: 'left', width: '10%' }}>
-                                    {column.columnName || `Colonne ${colIndex + 1}`}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                            </TableHead>
-
-                            <TableBody>
-                              {validObjectives.map((objective, objIndex) => (
-                                <TableRow key={objIndex}>
-                                  <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', width: '25%' }}>
-                                    {objective.description || ''}
-                                  </TableCell>
-                                  <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', width: '10%' }}>
-                                    <Box sx={{ color: 'primary.main', padding: '8px 16px', borderRadius: '8px', textAlign: 'center' }}>
-                                      <Typography>{objective.weighting || ''} %</Typography>
-                                    </Box>
-                                  </TableCell>
-                                  <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', width: '25%' }}>
-                                    {objective.resultIndicator || ''}
-                                  </TableCell>
-                                  <TableCell sx={{ borderRight: '1px solid rgba(224, 224, 224, 1)', width: '10%' }}>
-                                    <Box sx={{
-                                      backgroundColor: parseFloat(objective.result) >= 50 ? '#E8EAF6' : 'rgba(244, 67, 54, 0.1)',
-                                      color: parseFloat(objective.result) >= 50 ? 'primary.main' : 'error.main',
-                                      padding: '8px 16px',
-                                      borderRadius: '8px',
-                                      textAlign: 'center'
-                                    }}>
-                                      <Typography>{objective.result || '0'} %</Typography>
-                                    </Box>
-                                  </TableCell>
-                                  {objective.dynamicColumns?.map((column, colIndex) => (
-                                    <TableCell key={colIndex} sx={{ width: '10%' }}>
-                                      {column.value || ''}
-                                    </TableCell>
-                                  ))}
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              );
-            })
-          ) : (
-            // AFFICHAGE FORMULAIRE (pour saisie des résultats)
-            <>
-              <Stepper activeStep={activeStep} alternativeLabel>
-                {steps.map((label, index) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
-
-              {template.templateStrategicPriorities.length > 0 && activeStep < steps.length && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeStep}
-                    initial={{ opacity: 0, x: 50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -50 }}
-                    transition={{ duration: 0.5 }}
-                    style={{ marginTop: '2rem' }}
+    <>
+      <Box p={3}>
+        {noObjectivesFound ? (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Vous n'avez pas encore validé vos objectifs
+          </Alert>
+        ) : (
+          <>
+            {/* Afficher le bouton "Modifier mes résultats" seulement si l'utilisateur n'a pas encore validé ET si le manager n'a pas validé */}
+            {!isValidated && !isManagerValidation && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3, gap: 2 }}>
+                {!isEditing ? (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<IconEdit />}
+                    onClick={handleStartEditing}
                   >
-                    <Card>
-                      <CardContent>
-                        <Typography
-                          variant="h5"
-                          gutterBottom
-                          sx={{
-                            marginBottom: '20px',
-                            backgroundColor: '#fafafa',
-                            padding: 3,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          {template.templateStrategicPriorities[activeStep].name}
-                          <IconTargetArrow style={{ color: '#3F51B5' }} />
-                        </Typography>
-
-                        <Grid container spacing={3}>
-                          {template.templateStrategicPriorities[activeStep].objectives
-                            .filter(isObjectiveValid)
-                            .map((objective, objIndex) => (
-                              <Grid item xs={12} key={objIndex}>
-                                <Paper sx={{ p: 3, backgroundColor: '#e8eaf6' }}>
-                                  <Typography variant="h6" sx={{ mb: '20px' }} gutterBottom>
-                                    Objectif {objIndex + 1}
-                                  </Typography>
-                                  <Grid container spacing={2}>
-                                    <Grid item xs={12} sm={12}>
-                                      <TextField
-                                        label="Description de l'Objectif"
-                                        fullWidth
-                                        variant="outlined"
-                                        multiline
-                                        minRows={2}
-                                        value={objective.description || ''}
-                                        InputProps={{
-                                          readOnly: true
-                                        }}
-                                      />
-                                    </Grid>
-                                    <Grid item xs={12} sm={6}>
-                                      <TextField
-                                        label="Pondération"
-                                        fullWidth
-                                        variant="outlined"
-                                        value={objective.weighting || ''}
-                                        InputProps={{
-                                          readOnly: true,
-                                          endAdornment: <InputAdornment position="end">%</InputAdornment>
-                                        }}
-                                      />
-                                    </Grid>
-                                    <Grid item xs={12} sm={6}>
-                                      <TextField
-                                        label={
-                                          <span>
-                                            Résultat <span style={{ color: 'red' }}>*</span>
-                                          </span>
-                                        }
-                                        fullWidth
-                                        variant="outlined"
-                                        type="text"
-                                        value={objective.result || '0'}
-                                        onChange={(e) =>
-                                          handleObjectiveChange(
-                                            template.templateStrategicPriorities[activeStep].name,
-                                            objIndex,
-                                            'result',
-                                            e.target.value
-                                          )
-                                        }
-                                        helperText="Entre 0 et 100%"
-                                        InputProps={{
-                                          endAdornment: <InputAdornment position="end">%</InputAdornment>
-                                        }}
-                                      />
-                                    </Grid>
-                                    <Grid item xs={12}>
-                                      <TextField
-                                        label="Indicateur de Résultat"
-                                        fullWidth
-                                        variant="outlined"
-                                        multiline
-                                        minRows={2}
-                                        value={objective.resultIndicator || ''}
-                                        InputProps={{
-                                          readOnly: true
-                                        }}
-                                      />
-                                    </Grid>
-                                    {Array.isArray(objective.dynamicColumns) &&
-                                      objective.dynamicColumns.map((column, colIndex) => (
-                                        <Grid item xs={12} key={colIndex}>
-                                          <TextField
-                                            label={column.columnName || `Colonne ${colIndex + 1}`}
-                                            fullWidth
-                                            variant="outlined"
-                                            multiline
-                                            minRows={2}
-                                            value={column.value || ''}
-                                            InputProps={{
-                                              readOnly: true
-                                            }}
-                                          />
-                                        </Grid>
-                                      ))}
-                                  </Grid>
-                                </Paper>
-                              </Grid>
-                            ))}
-                        </Grid>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </AnimatePresence>
-              )}
-
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                <Button
-                  disabled={activeStep === 0}
-                  onClick={handleBack}
-                  variant="contained"
-                  color="primary"
-                  startIcon={<KeyboardArrowLeft />}
-                >
-                  Précédent
-                </Button>
-
-                {activeStep === steps.length - 1 ? (
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    Modifier mes résultats
+                  </Button>
+                ) : (
+                  <>
                     <Button
-                      variant="contained"
-                      color="warning"
-                      onClick={updateResults}
-                      disabled={isValidated}
+                      variant="outlined"
+                      color="error"
+                      startIcon={<IconX />}
+                      onClick={handleCancelEditing}
                     >
-                      Enregistrer les résultats
+                      Annuler
                     </Button>
                     <Button
                       variant="contained"
                       color="success"
-                      onClick={validateResults}
-                      disabled={isValidated}
+                      startIcon={<IconCheck />}
+                      onClick={handleConfirmSave}
                     >
-                      {isValidated ? 'Déjà validé' : 'Valider définitivement'}
+                      Enregistrer les résultats
                     </Button>
-                  </Box>
-                ) : (
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleNext}
-                    endIcon={<KeyboardArrowRight />}
-                  >
-                    Suivant
-                  </Button>
+                  </>
                 )}
               </Box>
-            </>
-          )}
+            )}
 
-          {viewMode === 'table' && !isValidated && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-              {allResultsAreZero ? (
-                <Alert severity="info" sx={{ mb: 2, width: '100%' }}>
-                  Votre manager n'a pas encore validé vos résultats. Vous pouvez saisir vos résultats estimés.
-                </Alert>
-              ) : (
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={validateResults}
-                  disabled={isValidated}
-                >
-                  {isValidated ? 'Déjà validé' : 'Valider les résultats'}
-                </Button>
-              )}
-            </Box>
-          )}
+            {isManagerValidation && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Votre manager a déjà validé vos résultats. Vous pouvez seulement les visualiser.
+              </Alert>
+            )}
 
-          {/* Modal pour la signature */}
-          <Dialog open={openSignatureModal} onClose={handleCloseSignatureModal}>
-            <DialogTitle>Veuillez signer pour continuer</DialogTitle>
-            <DialogContent>
-              <input type="file" accept="image/*" onChange={handleSignatureFileChange} />
-              <Typography variant="body2" sx={{ mt: 2 }}>
-                Choisissez une image contenant votre signature.
+            {template.templateStrategicPriorities.map((priority, priorityIndex) => (
+              <Card key={priorityIndex} sx={{ mb: 4 }}>
+                <CardContent>
+                  <Typography
+                    variant="h5"
+                    gutterBottom
+                    sx={{
+                      marginBottom: '20px',
+                      backgroundColor: '#e8eaf6',
+                      padding: 3,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    {priority.name}
+                    <IconTargetArrow style={{ color: '#3f51b5' }} />
+                  </Typography>
+
+                  <Grid container spacing={3}>
+                    <Grid item xs={12}>
+                      <TableContainer component="div">
+                        <Table aria-label={`tableau pour ${priority.name}`} sx={{ border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                          <TableHead>
+                            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                              <TableCell
+                                sx={{
+                                  fontWeight: 'bold',
+                                  color: '#333333',
+                                  textAlign: 'left',
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  width: '25%'
+                                }}
+                              >
+                                Objectif
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  fontWeight: 'bold',
+                                  color: '#333333',
+                                  textAlign: 'left',
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  width: '10%'
+                                }}
+                              >
+                                Pondération
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  fontWeight: 'bold',
+                                  color: '#333333',
+                                  textAlign: 'left',
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  width: '25%'
+                                }}
+                              >
+                                Indicateur de Résultat
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  fontWeight: 'bold',
+                                  color: '#333333',
+                                  textAlign: 'left',
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  width: '15%'
+                                }}
+                              >
+                                Résultat
+                                {isEditing && (
+                                  <Typography variant="caption" color="text.secondary" display="block">
+                                    (0-100)
+                                  </Typography>
+                                )}
+                              </TableCell>
+                              {priority.objectives[0]?.dynamicColumns?.map((column, colIndex) => (
+                                <TableCell
+                                  key={colIndex}
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    color: '#333333',
+                                    textAlign: 'left',
+                                    width: '10%'
+                                  }}
+                                >
+                                  {column.columnName || `Colonne ${colIndex + 1}`}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          </TableHead>
+
+                          <TableBody>
+                            {priority.objectives
+                              .filter((objective) => !isObjectiveUndefined(objective))
+                              .map((objective, objIndex) => (
+                                <TableRow key={objIndex}>
+                                  <TableCell
+                                    sx={{
+                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                      width: '25%'
+                                    }}
+                                  >
+                                    {objective.description || 'Non défini'}
+                                  </TableCell>
+                                  <TableCell
+                                    sx={{
+                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                      width: '10%'
+                                    }}
+                                  >
+                                    <Box
+                                      sx={{
+                                        color: objective.weighting >= 50 ? 'primary.main' : 'error.main',
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        textAlign: 'center'
+                                      }}
+                                    >
+                                      <Typography>
+                                        {(objective.weighting !== undefined && objective.weighting !== null && objective.weighting !== '') 
+                                          ? `${objective.weighting} %` 
+                                          : '0 %'}
+                                      </Typography>
+                                    </Box>
+                                  </TableCell>
+                                  <TableCell
+                                    sx={{
+                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                      width: '25%'
+                                    }}
+                                  >
+                                    {objective.resultIndicator ? objective.resultIndicator : 'Non défini'}
+                                  </TableCell>
+                                  <TableCell
+                                    sx={{
+                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                      width: '15%'
+                                    }}
+                                  >
+                                    {renderResultCell(objective)}
+                                  </TableCell>
+                                  {objective.dynamicColumns?.map((column, colIndex) => (
+                                    <TableCell
+                                      key={colIndex}
+                                      sx={{
+                                        width: '10%'
+                                      }}
+                                    >
+                                      {column.value ? column.value : ''}
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            ))}
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 4, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+              <Typography variant="body1" color="text.secondary">
+                {isValidated 
+                  ? 'Vous avez déjà validé vos objectifs et résultats' 
+                  : 'Après avoir ajouté tous vos résultats, validez'}
               </Typography>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseSignatureModal}>Annuler</Button>
+              
               <Button
-                onClick={() => {
-                  handleCloseSignatureModal();
-                  validateResults();
-                }}
                 variant="contained"
-                color="primary"
+                color="success"
+                disabled={isValidated || isManagerValidation}
+                onClick={() => setOpenValidationConfirmModal(true)}
+                size="large"
               >
-                Confirmer
+                {isValidated ? 'Déjà validé' : 'Valider'}
               </Button>
-            </DialogActions>
-          </Dialog>
-        </>
-      )}
-    </Box>
+            </Box>
+
+            {/* Modal de confirmation pour l'enregistrement des résultats */}
+            <Dialog open={openConfirmModal} onClose={() => setOpenConfirmModal(false)}>
+              <DialogTitle>Confirmer l'enregistrement</DialogTitle>
+              <DialogContent>
+                <Typography>
+                  Êtes-vous sûr de vouloir enregistrer ces résultats ?
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Vous pourrez toujours les modifier avant la validation définitive.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setOpenConfirmModal(false)}>Annuler</Button>
+                <Button 
+                  onClick={() => {
+                    setOpenConfirmModal(false);
+                    handleSaveResults();
+                  }} 
+                  variant="contained" 
+                  color="primary"
+                >
+                  Confirmer
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {/* Modal de confirmation pour la validation définitive */}
+            <Dialog open={openValidationConfirmModal} onClose={() => setOpenValidationConfirmModal(false)}>
+              <DialogTitle>Confirmer la validation</DialogTitle>
+              <DialogContent>
+                <Typography variant="body1" gutterBottom>
+                  Êtes-vous sûr de vouloir valider vos objectifs et résultats ?
+                </Typography>
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Attention :</strong> Après validation, vous ne pourrez plus modifier vos résultats.
+                    Seul votre manager pourra apporter des modifications si nécessaire.
+                  </Typography>
+                </Alert>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Cette action est irréversible pour la période d'évaluation en cours.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setOpenValidationConfirmModal(false)}>Annuler</Button>
+                <Button 
+                  onClick={() => {
+                    setOpenValidationConfirmModal(false);
+                    validateMitermObjectifHistory();
+                  }} 
+                  variant="contained" 
+                  color="success"
+                >
+                  Confirmer la validation
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </>
+        )}
+      </Box>
+    </>
   );
 }
 

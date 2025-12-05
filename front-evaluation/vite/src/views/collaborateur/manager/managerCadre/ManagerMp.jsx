@@ -13,7 +13,11 @@ import {
   CardContent,
   Grid,
   Paper,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material'; // Assurez-vous que ces imports sont corrects
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
@@ -25,9 +29,6 @@ function ManagerMp({ subordinateId, typeUser }) {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
   const managerId = user.id;
-  //   const { subordinateId, typeUser } = useParams();
-  // const subordinateId = '18219f8e-b781-46ff-9182-37c9da640c03';
-  // const typeUser = 'Cadre';
 
   const [evalId, setEvalId] = useState(null);
   const [templateId, setTemplateId] = useState(null);
@@ -37,9 +38,9 @@ function ManagerMp({ subordinateId, typeUser }) {
   const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [noObjectivesFound, setNoObjectivesFound] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
+  const [openValidationConfirmModal, setOpenValidationConfirmModal] = useState(false);
 
   // Fetch fonctions...
   const fetchCadreTemplateId = async () => {
@@ -262,7 +263,14 @@ function ManagerMp({ subordinateId, typeUser }) {
     return true;
   };
 
-  const steps = template.templateStrategicPriorities.map((priority) => priority.name);
+  const steps = template.templateStrategicPriorities
+    .filter(priority => {
+      // Filtrer les priorités qui ont au moins un objectif avec description
+      return priority.objectives && priority.objectives.some(obj => 
+        obj.description && obj.description.trim() !== ''
+      );
+    })
+    .map((priority) => priority.name);
 
   const validateMitermObjectif = async () => {
     if (isValidated) {
@@ -271,20 +279,29 @@ function ManagerMp({ subordinateId, typeUser }) {
     }
 
     try {
-      const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
-        priority.objectives.map((objective) => ({
-          objectiveId: objective.objectiveId,
-          indicatorName: priority.name,
-          description: objective.description || '',
-          weighting: parseFloat(objective.weighting) || 0,
-          resultIndicator: objective.resultIndicator || '',
-          result: parseFloat(objective.result) || 0,
-          objectiveColumnValues:
-            objective.dynamicColumns?.map((col) => ({
-              columnName: col.columnName,
-              value: col.value
-            })) || []
-        }))
+      // Filtrer les priorités qui ont au moins un objectif avec description
+      const filteredPriorities = template.templateStrategicPriorities.filter(priority => 
+        priority.objectives && priority.objectives.some(obj => 
+          obj.description && obj.description.trim() !== ''
+        )
+      );
+
+      const objectivesData = filteredPriorities.flatMap((priority) =>
+        priority.objectives
+          .filter(obj => obj.description && obj.description.trim() !== '') // Filtrer les objectifs vides
+          .map((objective) => ({
+            objectiveId: objective.objectiveId,
+            indicatorName: priority.name,
+            description: objective.description || '',
+            weighting: parseFloat(objective.weighting) || 0,
+            resultIndicator: objective.resultIndicator || '',
+            result: parseFloat(objective.result) || 0,
+            objectiveColumnValues:
+              objective.dynamicColumns?.map((col) => ({
+                columnName: col.columnName,
+                value: col.value
+              })) || []
+          }))
       );
 
       console.log(objectivesData);
@@ -326,6 +343,21 @@ function ManagerMp({ subordinateId, typeUser }) {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
+  // Fonction pour obtenir les priorités filtrées
+  const getFilteredPriorities = () => {
+    return template.templateStrategicPriorities.filter(priority => 
+      priority.objectives && priority.objectives.some(obj => 
+        obj.description && obj.description.trim() !== ''
+      )
+    );
+  };
+
+  // Fonction pour obtenir la priorité active (filtrée)
+  const getActivePriority = () => {
+    const filteredPriorities = getFilteredPriorities();
+    return filteredPriorities[activeStep];
+  };
+
   return (
     <>
       <Box p={3}>
@@ -343,7 +375,7 @@ function ManagerMp({ subordinateId, typeUser }) {
               ))}
             </Stepper>
 
-            {template.templateStrategicPriorities.length > 0 && activeStep < steps.length && (
+            {getFilteredPriorities().length > 0 && activeStep < steps.length && (
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeStep}
@@ -367,15 +399,14 @@ function ManagerMp({ subordinateId, typeUser }) {
                           alignItems: 'center'
                         }}
                       >
-                        {template.templateStrategicPriorities[activeStep].name}
+                        {getActivePriority()?.name}
                         <IconTargetArrow style={{ color: '#3F51B5' }} />
                       </Typography>
 
                       <Grid container spacing={3}>
-                        {Array.from({ length: template.templateStrategicPriorities[activeStep].maxObjectives }).map((_, objIndex) => {
-                          const objective = template.templateStrategicPriorities[activeStep].objectives[objIndex] || {};
-
-                          return (
+                        {getActivePriority()?.objectives
+                          .filter(obj => obj.description && obj.description.trim() !== '') // Filtrer les objectifs vides
+                          .map((objective, objIndex) => (
                             <Grid item xs={12} key={objIndex}>
                               <Paper sx={{ p: 3, backgroundColor: '#e8eaf6' }}>
                                 <Typography variant="h6" sx={{ mb: '20px' }} gutterBottom>
@@ -396,12 +427,13 @@ function ManagerMp({ subordinateId, typeUser }) {
                                       value={objective.description || ''}
                                       onChange={(e) =>
                                         handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
+                                          getActivePriority().name,
                                           objIndex,
                                           'description',
                                           e.target.value
                                         )
                                       }
+                                      disabled={isValidated}
                                     />
                                   </Grid>
                                   <Grid item xs={12}>
@@ -420,7 +452,7 @@ function ManagerMp({ subordinateId, typeUser }) {
                                         let value = e.target.value.replace(',', '.');
                                         if (!/^\d{0,3}(\.\d{0,2})?$/.test(value)) return;
                                         handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
+                                          getActivePriority().name,
                                           objIndex,
                                           'weighting',
                                           value
@@ -429,6 +461,7 @@ function ManagerMp({ subordinateId, typeUser }) {
                                       InputProps={{
                                         endAdornment: <InputAdornment position="end">%</InputAdornment>
                                       }}
+                                      disabled={isValidated}
                                     />
                                   </Grid>
 
@@ -446,12 +479,13 @@ function ManagerMp({ subordinateId, typeUser }) {
                                       value={objective.resultIndicator || ''}
                                       onChange={(e) =>
                                         handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
+                                          getActivePriority().name,
                                           objIndex,
                                           'resultIndicator',
                                           e.target.value
                                         )
                                       }
+                                      disabled={isValidated}
                                     />
                                   </Grid>
 
@@ -471,7 +505,7 @@ function ManagerMp({ subordinateId, typeUser }) {
                                         let value = e.target.value.replace(',', '.');
                                         if (!/^\d{0,3}(\.\d{0,2})?$/.test(value)) return;
                                         handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
+                                          getActivePriority().name,
                                           objIndex,
                                           'result',
                                           value
@@ -480,6 +514,7 @@ function ManagerMp({ subordinateId, typeUser }) {
                                       InputProps={{
                                         endAdornment: <InputAdornment position="end">%</InputAdornment>
                                       }}
+                                      disabled={isValidated}
                                     />
                                   </Grid>
 
@@ -498,13 +533,14 @@ function ManagerMp({ subordinateId, typeUser }) {
                                             value={column.value || ''}
                                             onChange={(e) =>
                                               handleObjectiveChange(
-                                                template.templateStrategicPriorities[activeStep].name,
+                                                getActivePriority().name,
                                                 objIndex,
                                                 'dynamicColumns',
                                                 e.target.value,
                                                 colIndex
                                               )
                                             }
+                                            disabled={isValidated}
                                           />
                                         </Box>
                                       </Grid>
@@ -512,8 +548,7 @@ function ManagerMp({ subordinateId, typeUser }) {
                                 </Grid>
                               </Paper>
                             </Grid>
-                          );
-                        })}
+                          ))}
                       </Grid>
                     </CardContent>
                   </Card>
@@ -539,7 +574,7 @@ function ManagerMp({ subordinateId, typeUser }) {
                   disabled={isValidated}
                   onClick={() => {
                     if (validateStep()) {
-                      validateMitermObjectif();
+                      setOpenValidationConfirmModal(true);
                     }
                   }}
                 >
@@ -561,57 +596,37 @@ function ManagerMp({ subordinateId, typeUser }) {
               )}
             </Box>
 
-            {/* Modal pour la signature */}
-            {/* <Dialog open={openSignatureModal} onClose={handleCloseSignatureModal}>
-              <DialogTitle>Veuillez signer pour continuer</DialogTitle>
+            {/* Modal de confirmation pour la validation */}
+            <Dialog open={openValidationConfirmModal} onClose={() => setOpenValidationConfirmModal(false)}>
+              <DialogTitle>Confirmer la validation</DialogTitle>
               <DialogContent>
-                <input type="file" accept="image/*" onChange={handleSignatureFileChange} />
-                <Typography variant="body2" sx={{ mt: 2 }}>
-                  Choisissez une image contenant votre signature.
+                <Typography variant="body1" gutterBottom>
+                  Êtes-vous sûr de vouloir valider les objectifs de ce collaborateur ?
+                </Typography>
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Attention :</strong> Après validation, le collaborateur ne pourra plus modifier ses résultats.
+                    Vous pourrez toujours apporter des modifications si nécessaire.
+                  </Typography>
+                </Alert>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                  Cette action est définitive pour la période d'évaluation en cours.
                 </Typography>
               </DialogContent>
               <DialogActions>
-                <Button onClick={handleCloseSignatureModal}>Annuler</Button>
-                <Button
+                <Button onClick={() => setOpenValidationConfirmModal(false)}>Annuler</Button>
+                <Button 
                   onClick={() => {
-                    // Une fois qu'on a choisi la signature, on ferme la modal
-                    handleCloseSignatureModal();
+                    setOpenValidationConfirmModal(false);
                     validateMitermObjectif();
-                  }}
-                  variant="contained"
-                  color="primary"
+                  }} 
+                  variant="contained" 
+                  color="success"
                 >
-                  Confirmer
+                  Confirmer la validation
                 </Button>
               </DialogActions>
-            </Dialog> */}
-
-            {/* <Dialog open={openNoSignatureModal} onClose={() => setOpenNoSignatureModal(false)}>
-              <DialogTitle>Signature manquante</DialogTitle>
-              <DialogContent>
-                <Typography variant="body1">
-                  Vous n’avez pas encore de signature enregistrée. Veuillez{' '}
-                  <Typography
-                    component="span"
-                    onClick={() => navigate('/collab/profile')}
-                    sx={{
-                      color: '#1976d2',
-                      textDecoration: 'none',
-                      fontWeight: 'bold',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    cliquer ici
-                  </Typography>{' '}
-                  pour continuer.
-                </Typography>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setOpenNoSignatureModal(false)} variant="contained" color="primary">
-                  Fermer
-                </Button>
-              </DialogActions>
-            </Dialog> */}
+            </Dialog>
           </>
         )}
       </Box>
