@@ -24,7 +24,6 @@ ehthumbs.db
 # --- Visual Studio & .NET (BACKEND) ---
 
 
-/UserService/appsettings.json
 /UserService/bin
 /UserService/Migrations
 /UserService/publish
@@ -33,7 +32,6 @@ ehthumbs.db
 /UserService/obj
 /UserService/.vs/
 
-/EvaluationService/appsettings.json
 /EvaluationService/bin
 /EvaluationService/Migrations
 /EvaluationService/obj
@@ -41,19 +39,6 @@ ehthumbs.db
 /EvaluationService/publish
 /EvaluationService/Properties
 
-
-/CommonModels/appsettings.json
-/CommonModels/bin
-/CommonModels/bin/Debug
-/CommonModels/Migrations
-/CommonModels/obj
-/CommonModels/.vs/
-
-/ExcelTransformation/appsettings.json
-/ExcelTransformation/bin
-/ExcelTransformation/Migrations
-/ExcelTransformation/obj
-/ExcelTransformation/.vs/
 
 
 # --- Ignorer les fichiers de publication ---
@@ -63,6 +48,5 @@ ehthumbs.db
 /front-evaluation/yarn.lock
 /front-evaluation/package-lock.json
 /front-evaluation/vite/package-lock.json
-/front-evaluation/vite/src/axiosConfig.js
 
 *.sln

@@ -112,7 +112,6 @@ namespace UserService.Controllers
                     // En production, remplacez par : bool isValid = context.ValidateCredentials(username, password, ContextOptions.Negotiate);
                     bool isValid = password == "Vina@2025!!!";
 
-
                     if (isValid)
                     {
                         // Vérifiez si EmailAddress est valide
