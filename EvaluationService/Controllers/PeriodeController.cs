@@ -494,6 +494,7 @@ namespace EvaluationService.Controllers
             evaluation.Final = evaluationDto.Final;
             evaluation.TemplateId = evaluationDto.TemplateId;
             evaluation.Titre = evaluationDto.Titre;
+            evaluation.Type = evaluationDto.Type;
 
             // Sauvegarder les modifications dans la base de données
             try

@@ -22,11 +22,10 @@ const archive = {
       breadcrumbs: false
     },
     {
-      id: 'authentication',
+      id: 'archive-historique',  
       title: 'Historique',
       type: 'collapse',
       icon: icons.IconArchive,
-
       children: [
         {
           id: 'archiveCadre',
@@ -38,9 +37,9 @@ const archive = {
           breadcrumbs: false
         },
         {
-          id: 'listeSpec',
+          id: 'archiveNonCadre',  
           title: 'Non Cadre',
-          type: 'item', 
+          type: 'item',
           url: '/allEvaluation/nonCadre',
           requiredHabilitation: 24,
           target: false,
@@ -50,5 +49,4 @@ const archive = {
     }
   ]
 };
-
 export default archive;

@@ -2,9 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using EvaluationService.Data;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json.Serialization;
+using EvaluationService.Service;
 using SendGrid;
 
 var builder = WebApplication.CreateBuilder(args);
+
+
+builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Ajouter SignalR
 builder.Services.AddSignalR();
@@ -49,7 +53,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:3000") // Frontend URL
+        policy.WithOrigins("http://10.0.180.37:8088") // Frontend URL
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials()

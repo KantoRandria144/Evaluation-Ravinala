@@ -550,7 +550,7 @@ function AllNonCadreArchive() {
                         {evaluationDetails?.competenceWeightTotal ? `${evaluationDetails.competenceWeightTotal} %` : '-'}
                       </StyledTableCell>
                       <StyledTableCell colSpan={4} sx={{ fontWeight: 'bold', textAlign: 'left', backgroundColor: '#eaf3e0' }}>
-                        TOTAL de la performance des indicateur
+                        TOTAL de la performance des indicateurs
                       </StyledTableCell>
                       <StyledTableCell sx={{ fontWeight: 'bold', textAlign: 'center', backgroundColor: '#eaf3e0' }}>
                         {scoreData?.competenceAvg ?? '-'} %
@@ -600,7 +600,7 @@ function AllNonCadreArchive() {
                         {evaluationDetails?.indicatorWeightTotal ? `${evaluationDetails.indicatorWeightTotal} %` : '-'}
                       </StyledTableCell>
                       <StyledTableCell sx={{ fontWeight: 'bold', textAlign: 'center', backgroundColor: '#eaf3e0' }}>
-                        TOTAL de la performance des indicateur
+                        TOTAL de la performance des indicateurs
                       </StyledTableCell>
                       <StyledTableCell sx={{ fontWeight: 'bold', textAlign: 'center', backgroundColor: '#eaf3e0' }}>
                         {scoreData?.indicatorAvg ?? '-'} %

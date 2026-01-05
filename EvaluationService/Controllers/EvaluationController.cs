@@ -5,6 +5,7 @@ using CommonModels.DTOs;
 using EvaluationService.Data;
 using EvaluationService.DTOs;
 using EvaluationService.Models;
+using EvaluationService.Service;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -25,14 +26,17 @@ namespace EvaluationService.Controllers
         private readonly ISendGridClient _sendGridClient;
         private readonly string _fromEmail;
         private readonly string _fromName;
+        private readonly IAuditService _auditService;
 
-        public EvaluationController(AppdbContext context, IHttpClientFactory httpClientFactory, ILogger<EvaluationController> logger, IHubContext<NotificationHub> hubContext, ISendGridClient sendGridClient, IConfiguration configuration)
+
+        public EvaluationController(AppdbContext context, IHttpClientFactory httpClientFactory, ILogger<EvaluationController> logger, IHubContext<NotificationHub> hubContext, ISendGridClient sendGridClient, IConfiguration configuration, IAuditService auditService)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _hubContext = hubContext;
             _sendGridClient = sendGridClient;
+            _auditService = auditService;
             _fromEmail = configuration["SendGrid:FromEmail"];
             _fromName = configuration["SendGrid:FromName"];
         }
@@ -45,6 +49,7 @@ namespace EvaluationService.Controllers
             {
                 return NotFound(new { Message = "Évaluation non trouvée." });
             }
+            
             return Ok(evaluation);
         }
 
@@ -232,330 +237,6 @@ namespace EvaluationService.Controllers
             });
         }
 
-        // [HttpPut("start/{evalId}")]
-        // public async Task<IActionResult> StartEvaluation(int evalId)
-        // {
-        //     // 1. Récupérer l'évaluation par son ID
-        //     var evaluation = await _context.Evaluations
-        //                                     .FirstOrDefaultAsync(e => e.EvalId == evalId);
-        //     if (evaluation == null)
-        //     {
-        //         return NotFound(new 
-        //         { 
-        //             Success = false, 
-        //             Message = "Évaluation non trouvée." 
-        //         });
-        //     }
-
-        //     // 2. Récupérer le type de l'évaluation
-        //     var typeEvaluation = evaluation.Type;
-
-        //     // 3. Vérifier s'il existe déjà une évaluation en cours du même type
-        //     bool evaluationEnCoursMemeType = await _context.Evaluations
-        //         .AnyAsync(e => e.EtatId == 2 && e.Type == typeEvaluation && e.EvalId != evalId);
-
-        //     if (evaluationEnCoursMemeType)
-        //     {
-        //         return Conflict(new 
-        //         { 
-        //             Success = false, 
-        //             Message = $"Une évaluation pour les collaborateurs '{typeEvaluation}' est déjà en cours. Veuillez la clôturer avant d'en démarrer une nouvelle." 
-        //         });
-        //     }
-
-        //     // 4. Mettre à jour l'état de l'évaluation à "En cours"
-        //     evaluation.EtatId = 2;
-        //     _context.Evaluations.Update(evaluation);
-        //     await _context.SaveChangesAsync();
-
-        //     // 5. Récupérer les utilisateurs en fonction du type d’évaluation
-        //     var users = await GetUsersByTypeAsync(typeEvaluation);
-
-        //     // 6. Associer les utilisateurs à l'évaluation dans la table "UserEvaluations"
-        //     foreach (var user in users)
-        //     {
-        //         bool alreadyAssigned = await _context.UserEvaluations
-        //                                             .AnyAsync(ue => ue.EvalId == evalId && ue.UserId == user.Id);
-        //         if (!alreadyAssigned)
-        //         {
-        //             var userEvaluation = new UserEvaluation
-        //             {
-        //                 EvalId = evalId,
-        //                 UserId = user.Id
-        //             };
-        //             _context.UserEvaluations.Add(userEvaluation);
-        //         }
-        //     }
-        //     await _context.SaveChangesAsync();
-
-        //     // 7. Envoyer un email aux utilisateurs concernés
-        //     try
-        //     {
-        //         // Liste des emails
-        //         var userEmails = users.Select(u => u.Email).ToList();
-
-        //         // Préparer le message
-        //         var subject = "Nouvelle évaluation démarrée";
-        //         var message = $"Une nouvelle évaluation de type '{typeEvaluation}' a été démarrée. Veuillez consulter votre tableau de bord pour participer.";
-
-        //         foreach (var email in userEmails)
-        //         {
-        //             await SendEmailAsync(email, subject, message);
-        //         }
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         return Ok(new
-        //         {
-        //             Success = true,
-        //             Message = "Évaluation démarrée avec succès, mais une erreur est survenue lors de l'envoi des emails.",
-        //             Error = ex.Message
-        //         });
-        //     }
-
-        //     return Ok(new 
-        //     { 
-        //         Success = true, 
-        //         Message = "Évaluation démarrée avec succès, et les utilisateurs ont été notifiés par email." 
-        //     });
-        // }
-
-        // [HttpPut("start/{evalId}")]
-        // public async Task<IActionResult> StartEvaluation(int evalId)
-        // {
-        //     _logger.LogInformation($"Démarrage de l'évaluation avec l'ID {evalId}.");
-
-        //     // 1. Récupérer l'évaluation par son ID
-        //     var evaluation = await _context.Evaluations
-        //                                     .FirstOrDefaultAsync(e => e.EvalId == evalId);
-        //     if (evaluation == null)
-        //     {
-        //         _logger.LogWarning($"Évaluation avec l'ID {evalId} non trouvée.");
-        //         return NotFound(new
-        //         {
-        //             Success = false,
-        //             Message = "Évaluation non trouvée."
-        //         });
-        //     }
-
-        //     // 2. Récupérer le type de l'évaluation
-        //     var typeEvaluation = evaluation.Type;
-
-        //     // 3. Vérifier s'il existe déjà une évaluation en cours du même type
-        //     bool evaluationEnCoursMemeType = await _context.Evaluations
-        //         .AnyAsync(e => e.EtatId == 2 && e.Type == typeEvaluation && e.EvalId != evalId);
-
-        //     if (evaluationEnCoursMemeType)
-        //     {
-        //         _logger.LogWarning($"Une évaluation de type '{typeEvaluation}' est déjà en cours.");
-        //         return Conflict(new
-        //         {
-        //             Success = false,
-        //             Message = $"Une évaluation pour les collaborateurs '{typeEvaluation}' est déjà en cours. Veuillez la clôturer avant d'en démarrer une nouvelle."
-        //         });
-        //     }
-
-        //     // 4. Mettre à jour l'état de l'évaluation à "En cours"
-        //     evaluation.EtatId = 2;
-        //     _context.Evaluations.Update(evaluation);
-        //     await _context.SaveChangesAsync();
-        //     _logger.LogInformation($"État de l'évaluation avec l'ID {evalId} mis à jour à 'En cours'.");
-
-        //     // 5. Envoyer un email de notification
-        //     try
-        //     {
-        //         await SendEmailAsync(new EmailRequest
-        //         {
-        //             ToEmail = "brunerleerudy@gmail.com",
-        //             Subject = "Évaluation démarrée",
-        //             Body = $"L'évaluation avec l'ID {evalId} a été démarrée avec succès."
-        //         });
-        //         _logger.LogInformation($"Email de notification envoyé pour l'évaluation ID {evalId}.");
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         _logger.LogError(ex, $"Erreur lors de l'envoi de l'email pour l'évaluation ID {evalId}.");
-        //         return Ok(new
-        //         {
-        //             Success = true,
-        //             Message = "Évaluation démarrée avec succès, mais une erreur est survenue lors de l'envoi de l'email.",
-        //             Error = ex.Message
-        //         });
-        //     }
-
-        //     return Ok(new
-        //     {
-        //         Success = true,
-        //         Message = "Évaluation démarrée avec succès, et un email de notification a été envoyé."
-        //     });
-        // }
-
-        // // Méthode utilitaire pour envoyer des emails avec SendGrid
-        // private async Task SendEmailAsync(EmailRequest request)
-        // {
-        //     var from = new EmailAddress(_fromEmail, _fromName);
-        //     var to = new EmailAddress(request.ToEmail);
-        //     var msg = MailHelper.CreateSingleEmail(from, to, request.Subject, request.Body, request.Body);
-
-        //     var response = await _sendGridClient.SendEmailAsync(msg);
-
-        //     if (response.StatusCode != System.Net.HttpStatusCode.Accepted &&
-        //         response.StatusCode != System.Net.HttpStatusCode.OK)
-        //     {
-        //         var responseBody = await response.Body.ReadAsStringAsync();
-        //         _logger.LogError($"Échec de l'envoi de l'email via SendGrid. Statut: {response.StatusCode}, Détails: {responseBody}");
-        //         throw new Exception($"Échec de l'envoi de l'email via SendGrid. Statut: {response.StatusCode}, Détails: {responseBody}");
-        //     }
-        // }
-
-        // [HttpGet("test-email")]
-        // public async Task<IActionResult> TestEmail()
-        // {
-        //     try
-        //     {
-        //         var emailRequest = new EmailRequest
-        //         {
-        //             ToEmail = "brunerleerudy@outlook.com",
-        //             Subject = "Evaluation Ravinala",
-        //             Body = "test"
-        //         };
-        //         await SendEmailAsync(emailRequest);
-        //         _logger.LogInformation($"Email de test envoyé à {emailRequest.ToEmail}.");
-        //         return Ok(new { Success = true, Message = "Email de test envoyé avec succès." });
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         _logger.LogError(ex, "Erreur lors de l'envoi de l'email de test.");
-        //         return StatusCode(StatusCodes.Status500InternalServerError, new 
-        //         { 
-        //             Success = false, 
-        //             Message = "Erreur lors de l'envoi de l'email de test.",
-        //             Error = ex.Message 
-        //         });
-        //     }
-        // }
-
-
-        // // Classe EmailRequest pour structurer les données de l'email
-        // public class EmailRequest
-        // {
-        //     public string ToEmail { get; set; }
-        //     public string Subject { get; set; }
-        //     public string Body { get; set; }
-        // }
-
-        // [HttpPut("start/{evalId}")]
-        // public async Task<IActionResult> StartEvaluation(int evalId)
-        // {
-        //     // 1. Récupérer l'évaluation par son ID
-        //     var evaluation = await _context.Evaluations
-        //                                 .FirstOrDefaultAsync(e => e.EvalId == evalId);
-        //     if (evaluation == null)
-        //     {
-        //         return NotFound(new 
-        //         { 
-        //             Success = false, 
-        //             Message = "Évaluation non trouvée." 
-        //         });
-        //     }
-
-        //     // 2. Récupérer le type de l'évaluation (par exemple, "Cadre" ou "NonCadre")
-        //     var typeEvaluation = evaluation.Type;
-
-        //     // 3. Vérifier s'il existe déjà une évaluation en cours du même type (EtatId = 2)
-        //     bool evaluationEnCoursMemeType = await _context.Evaluations
-        //         .AnyAsync(e => e.EtatId == 2 && e.Type == typeEvaluation && e.EvalId != evalId);
-
-        //     if (evaluationEnCoursMemeType)
-        //     {
-        //         return Conflict(new 
-        //         { 
-        //             Success = false, 
-        //             Message = $"Une évaluation pour les collaborateurs '{typeEvaluation}' est déjà en cours. Veuillez la clôturer avant d'en démarrer une nouvelle." 
-        //         });
-        //     }
-
-        //     // 4. Mettre à jour l'état de l'évaluation à "En cours" (EtatId = 2)
-        //     evaluation.EtatId = 2;
-        //     _context.Evaluations.Update(evaluation);
-        //     await _context.SaveChangesAsync();
-
-        //     // 5. Récupérer les utilisateurs en fonction du type d’évaluation via LDAP
-        //     var users = await GetUsersByTypeAsync(typeEvaluation); 
-        //     // Ex: "Cadre" ou "Non-Cadre"
-
-        //     // 6. Associer les utilisateurs à l'évaluation dans la table "UserEvaluations"
-        //     foreach (var user in users)
-        //     {
-        //         bool alreadyAssigned = await _context.UserEvaluations
-        //                                             .AnyAsync(ue => ue.EvalId == evalId && ue.UserId == user.Id);
-        //         if (!alreadyAssigned)
-        //         {
-        //             var userEvaluation = new UserEvaluation
-        //             {
-        //                 EvalId = evalId,
-        //                 UserId = user.Id // Utilisez le DN comme identifiant unique
-        //             };
-        //             _context.UserEvaluations.Add(userEvaluation);
-        //         }
-        //     }
-
-        //     await _context.SaveChangesAsync();
-
-        //     // 7. Envoyer des e-mails aux utilisateurs concernés
-        //     var subject = "Nouvelle Évaluation Démarrée";
-        //     var messageTemplate = @"
-        //         <p>Bonjour {0},</p>
-        //         <p>Une nouvelle évaluation de type <strong>{1}</strong> a été démarrée. Veuillez consulter votre tableau de bord pour plus de détails.</p>
-        //         <p>Cordialement,<br/>L'équipe RH</p>";
-
-        //     try
-        //     {
-        //         foreach (var user in users)
-        //         {
-        //             var message = string.Format(messageTemplate, user.DisplayName, typeEvaluation);
-        //             await _emailService.SendEmailAsync(user.Email, subject, message);
-        //             _logger.LogInformation($"E-mail envoyé à {user.Email}");
-        //         }
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         // Logger l'erreur
-        //         _logger.LogError(ex, "Erreur lors de l'envoi des e-mails");
-        //         // Optionnel : retourner une réponse partielle ou continuer sans interrompre le processus
-        //     }
-
-        //     return Ok(new 
-        //     { 
-        //         Success = true, 
-        //         Message = "Évaluation démarrée avec succès, utilisateurs ajoutés et e-mails envoyés." 
-        //     });
-        // }
-
-        // [HttpGet("send-test-email")]
-        // public async Task<IActionResult> SendTestEmail()
-        // {
-        //     var subject = "E-mail de Test";
-        //     var message = "<p>Ceci est un e-mail de test.</p>";
-        //     var toEmail = "brunerleerudy@gmail.com";
-
-        //     try
-        //     {
-        //         await _emailService.SendEmailAsync(toEmail, subject, message);
-        //         return Ok(new { Success = true, Message = "E-mail de test envoyé avec succès." });
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         _logger.LogError(ex, "Erreur lors de l'envoi de l'e-mail de test");
-        //         return StatusCode(500, new
-        //         {
-        //             Success = false,
-        //             Message = $"Erreur lors de l'envoi de l'e-mail : {ex.Message}",
-        //             InnerException = ex.InnerException?.Message
-        //         });
-        //     }
-        // }
-
         private async Task<int?> GetUserEvalIdAsync(int evalId, string userId)
         {
             var userEvaluation = await _context.UserEvaluations
@@ -624,14 +305,13 @@ namespace EvaluationService.Controllers
                         TemplatePriorityId = obj.TemplateStrategicPriority.TemplatePriorityId,
                         Name = obj.TemplateStrategicPriority.Name,
                         MaxObjectives = obj.TemplateStrategicPriority.MaxObjectives,
-                        // Ajouter d'autres propriétés si nécessaire
                     },
                     ObjectiveColumnValues = allColumns.Select(column => new ColumnValueDto
                     {
                         ColumnName = column.Name,
                         Value = obj.ObjectiveColumnValues
                                     .FirstOrDefault(ocv => ocv.ColumnId == column.ColumnId)?.Value
-                                    ?? string.Empty // Valeur par défaut si absente
+                                    ?? string.Empty
                     }).ToList()
                 }).ToList();
 
@@ -747,7 +427,6 @@ namespace EvaluationService.Controllers
             {
                 return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
             }
-
             var evaluationId = await _context.Evaluations
                 .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
@@ -858,155 +537,6 @@ namespace EvaluationService.Controllers
                 ObjectiveColumnValues = createdObjectiveColumnValues
             });
         }
-
-
-        // [HttpPost("validateUserObjectives")]
-        // public async Task<IActionResult> ValidateUserObjectives( IFormFile uploadedFile, string userId, string type, List<ObjectiveDto> objectives)
-        // {
-        //     // Vérifier si un fichier de signature est fourni
-        //     if (uploadedFile == null || uploadedFile.Length == 0)
-        //     {
-        //         return BadRequest(new { Message = "Le fichier de signature est requis pour valider les objectifs." });
-        //     }
-
-        //     // Envoyer le fichier de signature pour comparaison via API
-        //     var client = _httpClientFactory.CreateClient("UserService");
-        //     using (var content = new MultipartFormDataContent())
-        //     {
-        //         content.Add(new StreamContent(uploadedFile.OpenReadStream()), "uploadedFile", uploadedFile.FileName);
-
-        //         var response = await client.PostAsync($"api/Signature/compare-user-signature/{userId}", content);
-
-        //         if (!response.IsSuccessStatusCode)
-        //         {
-        //             return BadRequest(new { Message = "Échec de la validation de la signature. Vérifiez votre signature." });
-        //         }
-
-        //         var responseBody = await response.Content.ReadAsStringAsync();
-        //         var result = JsonSerializer.Deserialize<dynamic>(responseBody);
-        //         if (result.matchLevel != "Correspondance stricte.")
-        //         {
-        //             return BadRequest(new { Message = "Impossible de valider. La signature ne correspond pas strictement." });
-        //         }
-        //     }
-
-        //     // Si la signature est valide, continuer avec la logique existante
-        //     if (!Enum.TryParse<FormType>(type, true, out var formType))
-        //     {
-        //         return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
-        //     }
-
-        //     var evaluationId = await _context.Evaluations
-        //         .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
-        //         .Select(e => e.EvalId)
-        //         .FirstOrDefaultAsync();
-
-        //     if (evaluationId == 0)
-        //     {
-        //         return NotFound(new { Message = $"Aucune évaluation en cours pour le type {type}." });
-        //     }
-
-        //     var userEvalId = await GetUserEvalIdAsync(evaluationId, userId);
-        //     if (userEvalId == null)
-        //     {
-        //         return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
-        //     }
-
-        //     var createdUserObjectives = new List<UserObjective>();
-        //     var createdObjectiveColumnValues = new List<ObjectiveColumnValue>();
-
-        //     foreach (var objective in objectives)
-        //     {
-        //         // Création d'un UserObjective
-        //         var userObjective = new UserObjective
-        //         {
-        //             UserEvalId = userEvalId.Value,
-        //             PriorityId = objective.PriorityId,
-        //             Description = objective.Description,
-        //             Weighting = objective.Weighting,
-        //             ResultIndicator = objective.ResultIndicator,
-        //             Result = objective.Result,
-        //             CreatedBy = userId,
-        //             CreatedAt = DateTime.Now
-        //         };
-
-        //         _context.UserObjectives.Add(userObjective);
-        //         createdUserObjectives.Add(userObjective);
-
-        //         // Sauvegarder pour obtenir l'ID de UserObjective
-        //         await _context.SaveChangesAsync();
-
-        //         // Ajout des valeurs dynamiques pour les colonnes existantes
-        //         if (objective.DynamicColumns != null)
-        //         {
-        //             foreach (var col in objective.DynamicColumns)
-        //             {
-        //                 // Récupérer l'ID de la colonne existante
-        //                 var existingColumn = await _context.ObjectiveColumns
-        //                     .FirstOrDefaultAsync(c => c.Name == col.ColumnName);
-
-        //                 if (existingColumn == null)
-        //                 {
-        //                     // Si la colonne n'existe pas, ignorer la valeur
-        //                     Console.WriteLine($"Colonne dynamique inconnue : {col.ColumnName}");
-        //                     continue;
-        //                 }
-
-        //                 // Ajouter la valeur dans ObjectiveColumnValue
-        //                 var columnValue = new ObjectiveColumnValue
-        //                 {
-        //                     ObjectiveId = userObjective.ObjectiveId,
-        //                     ColumnId = existingColumn.ColumnId,
-        //                     Value = col.Value
-        //                 };
-
-        //                 _context.ObjectiveColumnValues.Add(columnValue);
-        //                 createdObjectiveColumnValues.Add(columnValue);
-        //             }
-        //         }
-        //     }
-
-        //     await _context.SaveChangesAsync();
-
-        //     // Enregistrement des notifications
-        //     try
-        //     {
-        //         var manager = await GetManagerByUserIdAsync(userId);
-        //         var triggeringUser = await GetUserDetails(userId);
-
-        //         if (manager != null && !string.IsNullOrEmpty(manager.Id))
-        //         {
-        //             var message = $"{triggeringUser.Name} a validé ses objectifs pour la période de Fixation des objectifs";
-
-        //             var notification = new Notification
-        //             {
-        //                 UserId = manager.Id,
-        //                 SenderId = userId,
-        //                 SenderMatricule = triggeringUser.Matricule,
-        //                 Message = message,
-        //                 IsRead = false,
-        //                 CreatedAt = DateTime.Now
-        //             };
-
-        //             _context.Notifications.Add(notification);
-        //             await _context.SaveChangesAsync();
-
-        //             NotificationService.Notify(manager.Id, notification);
-        //         }
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         Console.WriteLine($"Erreur lors de la notification du manager : {ex.Message}");
-        //     }
-
-        //     return Ok(new
-        //     {
-        //         Message = "Objectifs validés et enregistrés.",
-        //         UserObjectives = createdUserObjectives,
-        //         ObjectiveColumnValues = createdObjectiveColumnValues
-        //     });
-        // }
-
 
 
         [HttpPost("validateUserObjectivesHistory")]
@@ -2320,7 +1850,7 @@ namespace EvaluationService.Controllers
 
                 if (!historyRecords.Any())
                 {
-                    return NotFound(new { Message = "Aucun enregistrement trouvé pour cet utilisateur et cette évaluation." });
+                    return NotFound(new { Message = $"Aucun enregistrement trouvé pour cet utilisateur et cette évaluation. {userEvalId.Value}" });
                 }
 
                 // Retourner les données récupérées
@@ -3412,7 +2942,328 @@ namespace EvaluationService.Controllers
             }
         }
 
+        [HttpPost("updateResults")]
+        public async Task<IActionResult> UpdateResults([FromBody] UpdateResultsRequest request)
+        {
+            try
+            {
+                if (request == null)
+                {
+                    return BadRequest(new { Message = "Les données de mise à jour sont requises." });
+                }
 
+                if (!Enum.TryParse<FormType>(request.Type, true, out var formType))
+                {
+                    return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
+                }
+
+                // Récupérer l'ID de l'évaluation en cours pour le type spécifié
+                var evaluationId = await _context.Evaluations
+                    .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                    .Select(e => e.EvalId)
+                    .FirstOrDefaultAsync();
+
+                if (evaluationId == 0)
+                {
+                    return NotFound(new { Message = $"Aucune évaluation en cours pour le type {request.Type}." });
+                }
+
+                // Récupérer l'ID de l'évaluation utilisateur
+                var userEvalId = await GetUserEvalIdAsync(evaluationId, request.UserId);
+                if (userEvalId == null)
+                {
+                    return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
+                }
+
+                // Selon le type d'évaluation, traiter les données différemment
+                if (formType == FormType.Cadre)
+                {
+                    // Traitement pour les cadres - mise à jour des objectifs
+                    return await UpdateCadreResults(userEvalId.Value, request);
+                }
+                else if (formType == FormType.NonCadre)
+                {
+                    // Traitement pour les non-cadres - mise à jour des indicateurs
+                    return await UpdateNonCadreResults(userEvalId.Value, request);
+                }
+                else
+                {
+                    return BadRequest(new { Message = "Type d'évaluation non supporté." });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la mise à jour des résultats");
+                return StatusCode(500, new { Message = "Une erreur est survenue lors de la mise à jour des résultats.", Details = ex.Message });
+            }
+        }
+
+        private async Task<IActionResult> UpdateCadreResults(int userEvalId, UpdateResultsRequest request)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                if (request.Objectives == null || !request.Objectives.Any())
+                {
+                    return BadRequest(new { Message = "Aucun objectif fourni pour la mise à jour." });
+                }
+
+                // Récupérer tous les objectifs existants pour cet utilisateur
+                var existingObjectives = await _context.UserObjectives
+                    .Where(uo => uo.UserEvalId == userEvalId)
+                    .Include(uo => uo.ObjectiveColumnValues)
+                    .ToListAsync();
+
+                // Mettre à jour chaque objectif
+                foreach (var objectiveRequest in request.Objectives)
+                {
+                    var existingObjective = existingObjectives.FirstOrDefault(o => o.ObjectiveId == objectiveRequest.ObjectiveId);
+                    
+                    if (existingObjective != null)
+                    {
+                        // Mettre à jour les propriétés de base
+                        if (!string.IsNullOrEmpty(objectiveRequest.Description))
+                            existingObjective.Description = objectiveRequest.Description;
+                        
+                        if (objectiveRequest.Weighting.HasValue)
+                            existingObjective.Weighting = objectiveRequest.Weighting.Value;
+                        
+                        if (!string.IsNullOrEmpty(objectiveRequest.ResultIndicator))
+                            existingObjective.ResultIndicator = objectiveRequest.ResultIndicator;
+                        
+                        if (objectiveRequest.Result.HasValue)
+                            existingObjective.Result = objectiveRequest.Result.Value;
+
+                        // CORRECTION: Utiliser DynamicColumns au lieu de ColumnValues
+                        // Mettre à jour les colonnes dynamiques
+                        if (objectiveRequest.DynamicColumns != null && objectiveRequest.DynamicColumns.Any())
+                        {
+                            foreach (var column in objectiveRequest.DynamicColumns)
+                            {
+                                var existingColumnValue = existingObjective.ObjectiveColumnValues
+                                    .FirstOrDefault(cv => cv.ObjectiveColumn.Name == column.ColumnName);
+                                
+                                if (existingColumnValue != null)
+                                {
+                                    existingColumnValue.Value = column.Value;
+                                }
+                                else
+                                {
+                                    // Chercher la colonne dans la base de données
+                                    var columnEntity = await _context.ObjectiveColumns
+                                        .FirstOrDefaultAsync(c => c.Name == column.ColumnName);
+                                    
+                                    if (columnEntity != null)
+                                    {
+                                        var newColumnValue = new ObjectiveColumnValue
+                                        {
+                                            ObjectiveId = existingObjective.ObjectiveId,
+                                            ColumnId = columnEntity.ColumnId,
+                                            Value = column.Value
+                                        };
+                                        _context.ObjectiveColumnValues.Add(newColumnValue);
+                                    }
+                                }
+                            }
+                        }
+
+                        _context.UserObjectives.Update(existingObjective);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // Notifier le manager si nécessaire
+                try
+                {
+                    var manager = await GetManagerByUserIdAsync(request.UserId);
+                    var user = await GetUserDetails(request.UserId);
+
+                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
+                    {
+                        var message = $"{user.Name} a mis à jour ses résultats d'évaluation";
+
+                        var notification = new Notification
+                        {
+                            UserId = manager.Id,
+                            SenderId = request.UserId,
+                            SenderMatricule = user.Matricule,
+                            Message = message,
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        };
+
+                        _context.Notifications.Add(notification);
+                        await _context.SaveChangesAsync();
+
+                        NotificationService.Notify(manager.Id, notification);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erreur lors de la notification du manager");
+                }
+
+                return Ok(new { Message = "Résultats mis à jour avec succès." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Erreur lors de la mise à jour des résultats cadre");
+                throw;
+            }
+        }
+
+        private async Task<IActionResult> UpdateNonCadreResults(int userEvalId, UpdateResultsRequest request)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                if (request.Indicators == null || !request.Indicators.Any())
+                {
+                    return BadRequest(new { Message = "Aucun indicateur fourni pour la mise à jour." });
+                }
+
+                // Récupérer tous les indicateurs existants pour cet utilisateur
+                var existingIndicators = await _context.UserIndicators
+                    .Where(ui => ui.UserEvalId == userEvalId)
+                    .Include(ui => ui.UserIndicatorResults)
+                    .ToListAsync();
+
+                // Mettre à jour chaque indicateur
+                foreach (var indicatorRequest in request.Indicators)
+                {
+                    var existingIndicator = existingIndicators.FirstOrDefault(i => i.IndicatorId == indicatorRequest.IndicatorId);
+                    
+                    if (existingIndicator != null)
+                    {
+                        // Mettre à jour le nom de l'indicateur
+                        if (!string.IsNullOrEmpty(indicatorRequest.Name))
+                            existingIndicator.Name = indicatorRequest.Name;
+
+                        // Mettre à jour les résultats
+                        if (indicatorRequest.Results != null && indicatorRequest.Results.Any())
+                        {
+                            // Supprimer les anciens résultats
+                            var oldResults = existingIndicator.UserIndicatorResults.ToList();
+                            if (oldResults.Any())
+                            {
+                                _context.UserIndicatorResults.RemoveRange(oldResults);
+                            }
+
+                            // Ajouter les nouveaux résultats
+                            foreach (var result in indicatorRequest.Results)
+                            {
+                                var newResult = new UserIndicatorResult
+                                {
+                                    UserIndicatorId = existingIndicator.UserIndicatorId,
+                                    ResultText = result.ResultText,
+                                    Result = result.Result
+                                };
+                                _context.UserIndicatorResults.Add(newResult);
+                            }
+                        }
+
+                        _context.UserIndicators.Update(existingIndicator);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // Notifier le manager si nécessaire
+                try
+                {
+                    var manager = await GetManagerByUserIdAsync(request.UserId);
+                    var user = await GetUserDetails(request.UserId);
+
+                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
+                    {
+                        var message = $"{user.Name} a mis à jour ses résultats d'évaluation";
+
+                        var notification = new Notification
+                        {
+                            UserId = manager.Id,
+                            SenderId = request.UserId,
+                            SenderMatricule = user.Matricule,
+                            Message = message,
+                            IsRead = false,
+                            CreatedAt = DateTime.Now
+                        };
+
+                        _context.Notifications.Add(notification);
+                        await _context.SaveChangesAsync();
+
+                        NotificationService.Notify(manager.Id, notification);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erreur lors de la notification du manager");
+                }
+
+                return Ok(new { Message = "Résultats mis à jour avec succès." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Erreur lors de la mise à jour des résultats non-cadre");
+                throw;
+            }
+        }
+
+        public class UpdateResultsRequest
+        {
+            public string UserId { get; set; }
+            public string Type { get; set; } // "Cadre" ou "NonCadre"
+            
+            // Pour les cadres
+            public List<ObjectiveUpdateDto> Objectives { get; set; }
+            
+            // Pour les non-cadres
+            public List<IndicatorUpdateDto> Indicators { get; set; }
+        }
+
+        public class ObjectiveUpdateDto
+        {
+            public int ObjectiveId { get; set; }
+            public string Description { get; set; }
+            public decimal? Weighting { get; set; }
+            public string ResultIndicator { get; set; }
+            public decimal? Result { get; set; }
+            
+            // Propriété principale
+            public List<ColumnValueUpdateDto> DynamicColumns { get; set; }
+            
+            // Alias pour compatibilité
+            public List<ColumnValueUpdateDto> ColumnValues 
+            { 
+                get => DynamicColumns; 
+                set => DynamicColumns = value; 
+            }
+        }
+
+        public class IndicatorUpdateDto
+        {
+            public int IndicatorId { get; set; }
+            public string Name { get; set; }
+            public List<ResultUpdateDto> Results { get; set; }
+        }
+
+        public class ResultUpdateDto
+        {
+            public string ResultText { get; set; }
+            public decimal Result { get; set; }
+        }
+
+        public class ColumnValueUpdateDto  
+        {
+            public string ColumnName { get; set; }
+            public string Value { get; set; }
+        }
         public class MiParcoursDataDto
         {
             public List<CompetenceDto> Competences { get; set; }

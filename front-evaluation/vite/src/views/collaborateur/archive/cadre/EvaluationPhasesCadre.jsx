@@ -15,7 +15,14 @@ import {
   TableRow,
   IconButton,
   Alert,
-  Icon
+  Icon,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Chip,
+  CircularProgress
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import MainCard from 'ui-component/cards/MainCard';
@@ -33,8 +40,13 @@ function EvaluationPhasesCadre() {
   const [evaluationDetails, setEvaluationDetails] = useState(null);
   const [totalWeightingSum, setTotalWeightingSum] = useState(0);
   const [totalResultSum, setTotalResultSum] = useState(0);
-  const [errorMessage, setErrorMessage] = useState(''); 
+  const [errorMessage, setErrorMessage] = useState('');
+  const [userDetails, setUserDetails] = useState(null);
+  const [enrichedValidationHistory, setEnrichedValidationHistory] = useState([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
   const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userConnected = user.id;
   const userMatricule = user.matricule || 'N/A';
   const userNon = user.name || 'Utilisateur';
   const poste = user.poste || 'N/A';
@@ -42,25 +54,98 @@ function EvaluationPhasesCadre() {
   const superiorName = user.superiorName || 'N/A';
   const superiorId = user.superiorId;
 
-  const [isContentVisible, setIsContentVisible] = useState(true);
-
   const printRef = useRef();
   const [canDownload, setCanDownload] = useState(false);
   const HABILITATION_DOWNLOAD = 28;
 
-  const [userSignature, setUserSignature] = useState(null); // Signature du collaborateur
-  const [managerSignature, setManagerSignature] = useState(null); // Signature du manager
-
   const [managerDetail, setManagerDetail] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [userError, setUserError] = useState(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const initialize = async () => {
+      await fetchEvaluationDetails();
+      await checkPermissions();
+      await fetchManagerDetail(superiorId);
+      await fetchUserDetails();
+      await fetchValidationHistory();
+      await handlePhaseClick('Fixation');
+    };
+
+    initialize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchUserInfo = async (userId) => {
+    try {
+      const response = await authInstance.get(`/User/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des infos utilisateur:', error);
+      return null;
+    }
+  };
+
+  const fetchValidationHistory = async () => {
+    try {
+      const response = await formulaireInstance.get('/Evaluation/getUserObjectivesHistory', {
+        params: { userId: userId, type: 'Cadre' }
+      });
+      if (response.data && response.data.historyCFos && response.data.historyCFos.length > 0) {
+        const uniqueValidatorMap = new Map();
+        const history = response.data.historyCFos.filter(entry => entry.validatedBy !== null);
+        history.forEach((entry) => {
+          if (!uniqueValidatorMap.has(entry.validatedBy)) {
+            uniqueValidatorMap.set(entry.validatedBy, entry);
+          } else {
+            const existing = uniqueValidatorMap.get(entry.validatedBy);
+            if (new Date(entry.createdAt) > new Date(existing.createdAt)) {
+              uniqueValidatorMap.set(entry.validatedBy, entry);
+            }
+          }
+        });
+        const uniqueHistory = Array.from(uniqueValidatorMap.values());
+        const enriched = await Promise.all(
+          uniqueHistory.map(async (entry) => {
+            const userInfo = await fetchUserInfo(entry.validatedBy);
+            const formattedDate = entry.date || entry.createdAt ? new Date(entry.date || entry.createdAt).toLocaleDateString('fr-FR', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : 'Date non disponible';
+            return {
+              ...entry,
+              user: userInfo,
+              formattedDate,
+              status: 'Validé'
+            };
+          })
+        );
+        const sortedEnriched = enriched.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+        setEnrichedValidationHistory(sortedEnriched);
+      } else {
+        setEnrichedValidationHistory([]);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des données validées :', error);
+      setEnrichedValidationHistory([]);
+    }
+  };
 
   const fetchEvaluationDetails = async () => {
     try {
       const response = await formulaireInstance.get(`/Evaluation/${evalId}`);
       if (response && response.data) {
         setEvaluationDetails(response.data);
-        console.log(response.data);
       } else {
         console.error('Structure de réponse inattendue:', response);
       }
@@ -69,22 +154,27 @@ function EvaluationPhasesCadre() {
     }
   };
 
-  useEffect(() => {
-    handlePhaseClick('Fixation');
-    fetchEvaluationDetails();
-    checkPermissions();
-    fetchManagerDetail(superiorId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  
+  const fetchUserDetails = async () => {
+    try {
+      const response = await authInstance.get(`/User/user/${userId}`);
+      if (response && response.data) {
+        setUserDetails(response.data);
+        return response.data;
+      } else {
+        console.error('Structure de réponse inattendue:', response);
+        return null;
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des détails utilisateur:', error);
+      return null;
+    }
+  };
 
   const fetchManagerDetail = async (id) => {
     try {
       const response = await authInstance.get(`/User/user/${id}`);
       if (response && response.data) {
         setManagerDetail(response.data);
-        console.log(response.data.matricule);
       } else {
         console.error('Structure de réponse inattendue:', response);
         setUserError('Données utilisateur non disponibles.');
@@ -100,46 +190,12 @@ function EvaluationPhasesCadre() {
   const checkPermissions = async () => {
     try {
       const addResponse = await formulaireInstance.get(
-        `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${HABILITATION_DOWNLOAD}`
+        `/Periode/test-authorization?userId=${userConnected}&requiredHabilitationAdminId=${HABILITATION_DOWNLOAD}`
       );
       setCanDownload(addResponse.data.hasAccess);
     } catch (error) {
       const errorData = error.response?.data;
-      setError(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : 'Erreur lors de la vérification des autorisations.');
-    }
-  };
-
-  const fetchUserAndManagerSignatures = async (userId, managerId) => {
-    try {
-      // Récupérer la signature de l'utilisateur
-      try {
-        const userResponse = await authInstance.get(`/Signature/get-user-signature/${userId}`);
-        if (userResponse && userResponse.data && userResponse.data.signature) {
-          setUserSignature(userResponse.data.signature);
-        } else {
-          setUserSignature(null);
-        }
-      } catch (userError) {
-        console.log('Signature utilisateur non disponible:', userError.message);
-        setUserSignature(null);
-      }
-
-      // Récupérer la signature du manager
-      try {
-        const managerResponse = await authInstance.get(`/Signature/get-user-signature/${managerId}`);
-        if (managerResponse && managerResponse.data && managerResponse.data.signature) {
-          setManagerSignature(managerResponse.data.signature);
-        } else {
-          setManagerSignature(null);
-        }
-      } catch (managerError) {
-        console.log('Signature manager non disponible:', managerError.message);
-        setManagerSignature(null);
-      }
-    } catch (error) {
-      console.log('Erreur lors de la récupération des signatures:', error.message);
-      setUserSignature(null);
-      setManagerSignature(null);
+      setErrorMessage(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : 'Erreur lors de la vérification des autorisations.');
     }
   };
 
@@ -196,45 +252,29 @@ function EvaluationPhasesCadre() {
 
   const handlePhaseClick = async (phase) => {
     setActivePhase(phase);
-    setIsContentVisible(false);
     setErrorMessage('');
 
-    setTimeout(async () => {
-      try {
-        const response = await formulaireInstance.get(`/archive/historyCadre/${userId}/${evalId}/${phase}`);
-        if (response && response.data) {
-          if (response.data.message) {
-            setHistoryByPhase([]);
-            setErrorMessage(response.data.message);
-          } else {
-            setHistoryByPhase(response.data);
-            setErrorMessage('');
+    try {
+      const response = await formulaireInstance.get(`/archive/historyCadre/${userId}/${evalId}/${phase}`);
+      if (response && response.data) {
+        if (response.data.message) {
+          setHistoryByPhase([]);
+          setErrorMessage(response.data.message);
+        } else {
+          setHistoryByPhase(response.data);
+          setErrorMessage('');
 
-            // Appeler les pondérations et résultats selon la phase
-            if (phase === 'Fixation') {
-              await fetchTotalWeighting();
-            } else if (phase === 'Mi-Parcours' || phase === 'Évaluation Finale') {
-              await fetchTotalWeightingAndResult(phase);
-            }
-
-            // Appeler les signatures uniquement lorsque les données sont disponibles
-            if (response.data.length > 0) {
-              if (userId && superiorId) {
-                // Ne pas attendre les signatures pour éviter de bloquer l'interface
-                fetchUserAndManagerSignatures(userId, superiorId).catch(error => {
-                  console.log('Erreur lors de la récupération des signatures, mais continuons:', error.message);
-                });
-              }
-            }
+          if (phase === 'Fixation') {
+            await fetchTotalWeighting();
+          } else if (phase === 'Mi-Parcours' || phase === 'Évaluation Finale') {
+            await fetchTotalWeightingAndResult(phase);
           }
         }
-      } catch (error) {
-        console.error("Erreur lors de la récupération de l'historique de la phase:", error);
-        setErrorMessage('Pas de donnée disponible');
-      } finally {
-        setIsContentVisible(true);
       }
-    }, 400);
+    } catch (error) {
+      console.error("Erreur lors de la récupération de l'historique de la phase:", error);
+      setErrorMessage('Pas de donnée disponible');
+    }
   };
 
   const groupedData = historyByPhase.reduce((acc, curr) => {
@@ -250,55 +290,64 @@ function EvaluationPhasesCadre() {
     new Set(historyByPhase.flatMap((objective) => objective.columnValues || []).map((column) => column.columnName))
   );
 
-  // const exportPDF = () => {
-  //   const input = printRef.current;
-  //   html2canvas(input, { scale: 2 })
-  //     .then((canvas) => {
-  //       const imgData = canvas.toDataURL('image/png');
-  //       const pdf = new jsPDF({
-  //         orientation: 'portrait',
-  //         unit: 'pt',
-  //         format: 'a4'
-  //       });
+  const dynamicColumnsCount = columnNames.length;
 
-  //       const imgProps = pdf.getImageProperties(imgData);
-  //       const pdfWidth = pdf.internal.pageSize.getWidth();
-  //       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-  //       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-  //       const sanitizedUserName = userNon.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  //       pdf.save(`${sanitizedUserName}_formulaire_Cadre.pdf`);
-  //     })
-  //     .catch((err) => {
-  //       console.error('Erreur lors de la génération du PDF:', err);
-  //     });
-  // };
+  const getEvaluationYear = () => {
+    if (evaluationDetails?.evalAnnee) {
+      return evaluationDetails.evalAnnee;
+    }
+    const titreMatch = evaluationDetails?.titre?.match(/(\d{4})$/);
+    return titreMatch ? titreMatch[1] : 'Année non spécifiée';
+  };
 
   const exportPDF = () => {
     const input = printRef.current;
-    const opt = {
-      margin:       0.5, // Marges en pouces
-      filename:     `${userNon.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_formulaire_Cadre.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
-      jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-      pagebreak:    { mode: ['css', 'legacy'] } // Gestion des sauts de page
-    };
+    html2canvas(input, { scale: 2, useCORS: true }).then((canvas) => {
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF('l', 'pt', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
   
-    html2pdf().set(opt).from(input).save().catch((err) => {
-      console.error('Erreur lors de la génération du PDF:', err);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+  
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+  
+      const sanitizedUserName = (userDetails?.name || userNon).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      pdf.save(`${sanitizedUserName}_formulaire_Cadre.pdf`);
+    }).catch((err) => {
+      console.error('Erreur lors de la génération du PDF', err);
     });
-  };  
-  
+  };
+
+  if (isInitialLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Paper>
       <MainCard>
         <Grid container alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
           <Grid item>
-            <Typography variant="subtitle2">Archive</Typography>
+            <Typography variant="subtitle2">Résultat</Typography>
             <Typography variant="h3" sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
-              Formulaire d’évaluation
+              Formulaire d'évaluation
             </Typography>
           </Grid>
           <Grid item>
@@ -335,16 +384,7 @@ function EvaluationPhasesCadre() {
           ))}
         </Grid>
 
-        <Box
-          sx={{
-            padding: 2,
-            opacity: isContentVisible ? 1 : 0,
-            transform: isContentVisible ? 'translateY(0)' : 'translateY(10px)',
-            transition: 'opacity 0.5s ease, transform 0.5s ease',
-            willChange: 'opacity, transform'
-          }}
-          ref={printRef}
-        >
+        <Box ref={printRef}>
           {errorMessage ? (
             <Alert
               severity="info"
@@ -359,7 +399,7 @@ function EvaluationPhasesCadre() {
             <>
               {evaluationDetails && (
                 <Typography variant="h4" align="center" sx={{ backgroundColor: '#e8f2dc', padding: 1, fontWeight: 'bold', mt: 2 }}>
-                  {evaluationDetails.titre}
+                  {evaluationDetails.titre} ({getEvaluationYear()})
                 </Typography>
               )}
               <Grid container spacing={4} sx={{ mb: 3, mt: 2 }}>
@@ -370,14 +410,16 @@ function EvaluationPhasesCadre() {
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
                     <Typography variant="body1">
-                    <span style={{ fontWeight: 'bold' }}> Nom: </span> {userNon}
-                    </Typography> 
-                    <Typography variant="body1"> <span style={{ fontWeight: 'bold' }}> Matricule: </span> {userMatricule || 'N/A'}</Typography>
-                    <Typography variant="body1">
-                    <span style={{ fontWeight: 'bold' }}> Poste: </span> {poste}
+                      <span style={{ fontWeight: 'bold' }}> Nom: </span> {userNon}
                     </Typography>
                     <Typography variant="body1">
-                    <span style={{ fontWeight: 'bold' }}> Département: </span> {departement}
+                      <span style={{ fontWeight: 'bold' }}> Matricule: </span> {userMatricule}
+                    </Typography>
+                    <Typography variant="body1">
+                      <span style={{ fontWeight: 'bold' }}> Poste: </span> {poste}
+                    </Typography>
+                    <Typography variant="body1">
+                      <span style={{ fontWeight: 'bold' }}> Département: </span> {departement}
                     </Typography>
                   </Paper>
                 </Grid>
@@ -388,18 +430,21 @@ function EvaluationPhasesCadre() {
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
                     <Typography variant="body1">
-                    <span style={{ fontWeight: 'bold' }}> Nom: </span> {superiorName}
-                    </Typography> 
-                    <Typography variant="body1"> <span style={{ fontWeight: 'bold' }}> Matricule: </span> {managerDetail?.matricule || 'N/A'}</Typography>
-                    <Typography variant="body1">
-                    <span style={{ fontWeight: 'bold' }}> Poste: </span> {managerDetail?.poste}
+                      <span style={{ fontWeight: 'bold' }}> Nom: </span> {superiorName}
                     </Typography>
                     <Typography variant="body1">
-                    <span style={{ fontWeight: 'bold' }}> Département: </span> {managerDetail?.department}
+                      <span style={{ fontWeight: 'bold' }}> Matricule: </span> {managerDetail?.matricule || 'N/A'}
+                    </Typography>
+                    <Typography variant="body1">
+                      <span style={{ fontWeight: 'bold' }}> Poste: </span> {managerDetail?.poste || 'N/A'}
+                    </Typography>
+                    <Typography variant="body1">
+                      <span style={{ fontWeight: 'bold' }}> Département: </span> {managerDetail?.department || 'N/A'}
                     </Typography>
                   </Paper>
                 </Grid>
               </Grid>
+
               <TableContainer sx={{ border: '1px solid #ddd', borderRadius: '4px', mt: 4 }}>
                 <Table>
                   <TableHead>
@@ -412,13 +457,12 @@ function EvaluationPhasesCadre() {
                       <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#e8eaf6', color: 'black' }}>
                         INDICATEURS DE RÉSULTAT
                       </TableCell>
-                      <TableCell sx={{ backgroundColor: '#e8eaf6', color: 'black' }}>RÉSULTATS en % d’atteinte sur 100%</TableCell>
-                      {columnNames?.length > 0 &&
-                        columnNames.map((columnName) => (
-                          <TableCell key={columnName} sx={{ backgroundColor: '#c5cae9', color: 'black' }}>
-                            {columnName}
-                          </TableCell>
-                        ))}
+                      <TableCell sx={{ backgroundColor: '#e8eaf6', color: 'black' }}>RÉSULTATS en % d'atteinte sur 100%</TableCell>
+                      {columnNames.map((columnName) => (
+                        <TableCell key={columnName} sx={{ backgroundColor: '#c5cae9', color: 'black' }}>
+                          {columnName}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -426,14 +470,10 @@ function EvaluationPhasesCadre() {
                       <React.Fragment key={priorityName}>
                         <TableRow>
                           <TableCell
-                            rowSpan={objectives.length + 2}
+                            rowSpan={objectives.length + 1}
                             sx={{ borderRight: '1px solid #ddd', fontWeight: 'bold', verticalAlign: 'top' }}
                           >
                             {priorityName}
-                            <Typography variant="caption" display="block">
-                              {/* Vous pouvez décommenter et ajuster si nécessaire */}
-                              {/* ({objectives[0].weighting}% / {objectives[0].totalWeighting || 0}%) */}
-                            </Typography>
                           </TableCell>
                         </TableRow>
                         {objectives.map((objective) => (
@@ -450,13 +490,14 @@ function EvaluationPhasesCadre() {
                             <TableCell sx={{ borderRight: '1px solid #ddd' }}>
                               {objective.result && objective.result !== 0 ? `${objective.result}%` : ' '}
                             </TableCell>
-                            {objective.columnValues &&
-                              objective.columnValues.length > 0 &&
-                              objective.columnValues.map((column) => (
-                                <TableCell key={column.columnName} sx={{ borderRight: '1px solid #ddd' }}>
-                                  {column.value !== 'N/A' ? column.value : ''}
+                            {columnNames.map((columnName) => {
+                              const columnValue = (objective.columnValues || []).find(col => col.columnName === columnName);
+                              return (
+                                <TableCell key={columnName} sx={{ borderRight: '1px solid #ddd' }}>
+                                  {columnValue?.value !== 'N/A' ? columnValue?.value : ''}
                                 </TableCell>
-                              ))}
+                              );
+                            })}
                           </TableRow>
                         ))}
                         <TableRow sx={{ backgroundColor: '#e8f2dc' }}>
@@ -467,12 +508,16 @@ function EvaluationPhasesCadre() {
                             Sous-total de pondération
                           </TableCell>
                           <TableCell sx={{ fontSize: '0.8rem', color: '#000', borderRight: '1px solid #ddd' }}>
-                            {objectives[0].totalWeighting || 0} %
+                            {objectives[0]?.totalWeighting || 0} %
                           </TableCell>
-                          <TableCell sx={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#000', borderRight: '1px solid #ddd' }}>
-                            Sous-total résultats
+                          <TableCell
+                            colSpan={2 + dynamicColumnsCount}
+                            sx={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#000' }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>Sous-total résultats : {objectives[0]?.totalResult || 0} %</span>
+                            </Box>
                           </TableCell>
-                          <TableCell sx={{ fontSize: '0.8rem', color: '#000' }}>{objectives[0].totalResult || 0} %</TableCell>
                         </TableRow>
                       </React.Fragment>
                     ))}
@@ -480,8 +525,12 @@ function EvaluationPhasesCadre() {
                       <TableCell colSpan={1} sx={{ backgroundColor: 'transparent' }}></TableCell>
                       <TableCell sx={{ backgroundColor: '#fff9d1' }}>TOTAL PONDÉRATION (100%)</TableCell>
                       <TableCell sx={{ backgroundColor: '#fff9d1' }}>{totalWeightingSum}%</TableCell>
-                      <TableCell sx={{ backgroundColor: '#fff9d1' }}>PERFORMANCE du contrat d'objectifs</TableCell>
-                      <TableCell sx={{ backgroundColor: '#fff9d1' }}>{totalResultSum}%</TableCell>
+                      <TableCell colSpan={2 + dynamicColumnsCount} sx={{ backgroundColor: '#fff9d1' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>PERFORMANCE du contrat d'objectifs</span>
+                          <span>{totalResultSum}%</span>
+                        </Box>
+                      </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -571,43 +620,72 @@ function EvaluationPhasesCadre() {
                 </Grid>
               </Grid>
 
-              <Grid container sx={{ mt: 2 }} spacing={4}>
-                <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                  <Typography variant="body1">Signature Collaborateur</Typography>
-                  <Box sx={{ height: '100px', border: '1px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {userSignature ? (
-                      <img
-                        src={`data:image/png;base64,${userSignature}`}
-                        alt="Signature Collaborateur"
-                        style={{ maxWidth: '100%', maxHeight: '100%' }}
-                        onError={(e) => {
-                          console.log('Erreur de chargement de la signature utilisateur');
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <Box sx={{ width: '100%', height: '100%' }} />
-                    )}
-                  </Box>
-                </Grid>
-
-                <Grid item xs={6} sx={{ textAlign: 'center' }}>
-                  <Typography variant="body1">Signature Manager</Typography>
-                  <Box sx={{ height: '100px', border: '1px solid black', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {managerSignature ? (
-                      <img
-                        src={`data:image/png;base64,${managerSignature}`}
-                        alt="Signature Manager"
-                        style={{ maxWidth: '100%', maxHeight: '100%' }}
-                        onError={(e) => {
-                          console.log('Erreur de chargement de la signature manager');
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <Box sx={{ width: '100%', height: '100%' }} />
-                    )}
-                  </Box>
+              <Grid container sx={{ mt: 2 }} spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>Historique de validation</Typography>
+                  {enrichedValidationHistory.length > 0 ? (
+                    <List sx={{ width: '100%', bgcolor: 'background.paper', maxHeight: 400, overflow: 'auto' }}>
+                      {enrichedValidationHistory.map((entry, index) => (
+                        <React.Fragment key={index}>
+                          <ListItem alignItems="flex-start" sx={{ p: 2 }}>
+                            <ListItemAvatar>
+                              <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                {entry.user?.name?.charAt(0) || 'U'}
+                              </Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                  <Typography
+                                    component="span"
+                                    sx={{ display: 'inline', fontWeight: 'bold', mr: 1 }}
+                                  >
+                                    {entry.user?.name || 'Utilisateur inconnu'}
+                                  </Typography>
+                                  <Chip label={entry.status} size="small" color="success" />
+                                </Box>
+                              }
+                              secondary={
+                                <React.Fragment>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.primary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
+                                    Matricule: {entry.user?.matricule || 'N/A'}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.primary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
+                                    Poste: {entry.user?.poste || 'N/A'}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{ display: 'block' }}
+                                  >
+                                    {entry.formattedDate}
+                                  </Typography>
+                                </React.Fragment>
+                              }
+                            />
+                          </ListItem>
+                          {index < enrichedValidationHistory.length - 1 && <Divider variant="inset" component="li" />}
+                        </React.Fragment>
+                      ))}
+                    </List>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        Aucun historique de validation pour le moment.
+                      </Typography>
+                    </Box>
+                  )}
                 </Grid>
               </Grid>
             </>

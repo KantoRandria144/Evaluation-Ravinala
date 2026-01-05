@@ -1,0 +1,46 @@
+GESTION DES Mission
+
+BACK : 10.0.180.37:8089
+FRONT : 10.0.180.37:8090
+
+
+Accès FTP: (login et mdp)
+10.0.180.37
+
+BACK >> gdm_bo/G3m1@b0
+FRONT >> gdm_fo / G3m1@f0
+
+
+BASE 
+10.0.180.37
+
+INSTANCE : TNR-SRV-DEV1\SQL_DEV1
+Nom de la base : GESTIONDEMISSION_DB
+
+>> sa_gdm / S@gmmXdb
+
+
+
+
+POUR VINA 
+
+BACK1 : 10.0.180.37:8087 (USERSERVICE)
+BACK2 : 10.0.180.37:8093 (EVALUATIONSERVICE)
+FRONT : 10.0.180.37:8088
+
+
+Accès FTP: (login et mdp)
+10.0.180.37
+
+BACK1 >> vina_bo/ V1na@b0
+BACK2 >> vina_bo2/ V1na@b0
+FRONT >> vina_fo / V1na@f0
+
+
+BASE 
+10.0.180.37
+
+INSTANCE : TNR-SRV-DEV1\SQL_DEV1
+Nom de la base : VINADB
+
+>> sa_vina / S@vnnXdb

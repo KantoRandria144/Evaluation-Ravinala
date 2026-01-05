@@ -34,8 +34,9 @@ const AssignationAll = Loadable(lazy(() => import('views/admin/utilisateur/Assig
 
 const ImportCSV = Loadable(lazy(() => import('views/admin/import/index')));
 
-const DashboardAdmin = Loadable(lazy(() => import('views/admin/dashboard/index')));
 
+const DashboardAdmin = Loadable(lazy(() => import('views/admin/dashboard/index')));
+const ListeLogs = Loadable(lazy(() => import('views/admin/logs/ListeLogs')));
 
 // Rh
 const ListeEval = Loadable(lazy(() => import('views/rh/evaluation/Liste')));
@@ -471,6 +472,15 @@ const MainRoutes = {
         }
       ]
     },
+    {
+      path: 'logs',
+      children: [
+        {
+          path: 'liste-logs',
+          element: <ListeLogs />
+        }
+      ]
+    }
   ]
 };
 

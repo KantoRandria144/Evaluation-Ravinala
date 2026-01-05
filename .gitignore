@@ -15,11 +15,11 @@ ehthumbs.db
 /front-evaluation/vite/node_modules/
 /front-evaluation/vite/build/
 /front-evaluation/vite/dist/
-/front-evaluation/vite/.env
 /front-evaluation/vite/.next/
 /front-evaluation/vite/.turbo/
 /front-evaluation/vite/.cache/
 /front-evaluation/vite/.eslintcache
+/front-evaluation/vite/yarn.lock
 
 # --- Visual Studio & .NET (BACKEND) ---
 
@@ -27,6 +27,8 @@ ehthumbs.db
 /UserService/appsettings.json
 /UserService/bin
 /UserService/Migrations
+/UserService/publish
+/UserService/Properties
 /UserService/obj
 /UserService/obj
 /UserService/.vs/
@@ -36,6 +38,8 @@ ehthumbs.db
 /EvaluationService/Migrations
 /EvaluationService/obj
 /EvaluationService/.vs/
+/EvaluationService/publish
+/EvaluationService/Properties
 
 
 /CommonModels/appsettings.json

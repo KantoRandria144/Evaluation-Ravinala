@@ -33,6 +33,7 @@ import Transitions from 'ui-component/extended/Transitions';
 import { IconLogout, IconSettings, IconUser } from '@tabler/icons-react';
 
 import { authInstance } from 'axiosConfig';
+import AuditService from "../../../../services/AuditService";
 // ==============================|| PROFILE MENU ||============================== //
 
 const ProfileSection = () => {
@@ -54,6 +55,12 @@ const ProfileSection = () => {
     try {
       const response = await authInstance.post('/Login/logout');
       if (response.status === 200) {
+        await AuditService.logAction(
+          user.id,
+          'Deconnexion réussie',
+          'Users',
+          user.id
+        );
         console.log(response.data.message); // Message de succès
         // Nettoyer localStorage et rediriger
         localStorage.removeItem('token');

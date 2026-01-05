@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { formulaireInstance, authInstance } from '../../../../axiosConfig';
-import MainCard from 'ui-component/cards/MainCard';
 import {
   Box,
   TextField,
@@ -13,41 +12,96 @@ import {
   CardContent,
   Grid,
   Paper,
-  Alert
-} from '@mui/material'; // Assurez-vous que ces imports sont corrects
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Container,
+  Tooltip,
+  IconButton,
+  Snackbar,
+  Alert,
+  InputAdornment,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Divider,
+  Chip
+} from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
 import { IconTargetArrow } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import InputAdornment from '@mui/material/InputAdornment';
+import HelpIcon from '@mui/icons-material/Help';
+import HistoryIcon from '@mui/icons-material/History';
+import AuditService from '../../../../services/AuditService';
 
-function ManagerMp({ subordinateId, typeUser }) { 
+function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
   const managerId = user.id;
-  //   const { subordinateId, typeUser } = useParams();
-  // const subordinateId = '18219f8e-b781-46ff-9182-37c9da640c03';
-  // const typeUser = 'Cadre';
 
   const [evalId, setEvalId] = useState(null);
   const [templateId, setTemplateId] = useState(null);
   const [currentPeriod, setCurrentPeriod] = useState('');
+  const [evaluationYear, setEvaluationYear] = useState('');
   const [hasOngoingEvaluation, setHasOngoingEvaluation] = useState(false);
   const [template, setTemplate] = useState({ templateStrategicPriorities: [] });
   const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [noObjectivesFound, setNoObjectivesFound] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
+  const [hasCollaboratorFilledResults, setHasCollaboratorFilledResults] = useState(false);
+  const [validationHistory, setValidationHistory] = useState([]);
+  const [enrichedValidationHistory, setEnrichedValidationHistory] = useState([]);
+  const [openHelpModal, setOpenHelpModal] = useState(false);
+  const [openHistoryModal, setOpenHistoryModal] = useState(false);
+  const [openConfirmModal, setOpenConfirmModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [subordinate, setSubordinate] = useState({});
 
-  // Fetch fonctions...
+  const handleOpenHelpModal = () => {
+    setOpenHelpModal(true);
+  };
+
+  const handleCloseHelpModal = () => {
+    setOpenHelpModal(false);
+  };
+
+  const handleOpenHistoryModal = () => {
+    setOpenHistoryModal(true);
+  };
+
+  const handleCloseHistoryModal = () => {
+    setOpenHistoryModal(false);
+  };
+
+  const handleOpenConfirmModal = () => {
+    setOpenConfirmModal(true);
+  };
+
+  const handleCloseConfirmModal = () => {
+    setOpenConfirmModal(false);
+  };
+
+  const handleCloseSnackbar = () => {
+    setOpenSnackbar(false);
+    setErrorMessage('');
+  };
+
   const fetchCadreTemplateId = async () => {
     try {
       const response = await formulaireInstance.get('/Template/CadreTemplate');
       if (response.data?.templateId) setTemplateId(response.data.templateId);
     } catch (error) {
       console.error('Erreur lors de la récupération du Template ID:', error);
+      setErrorMessage('Erreur lors de la récupération de l\'ID du modèle.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -57,10 +111,13 @@ function ManagerMp({ subordinateId, typeUser }) {
         params: { type: 'Cadre' }
       });
       setHasOngoingEvaluation(response.data.length > 0);
-      const evaluationId = response.data[0].evalId;
-      setEvalId(evaluationId);
+      if (response.data.length > 0) {
+        setEvalId(response.data[0].evalId);
+      }
     } catch (error) {
       console.error('Erreur lors de la vérification des évaluations:', error);
+      setErrorMessage('Erreur lors de la vérification des évaluations.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -69,29 +126,50 @@ function ManagerMp({ subordinateId, typeUser }) {
 
     try {
       const response = await formulaireInstance.get(`/Template/${templateId}`);
-      console.log('Template:', response.data.template);
       setTemplate(response.data.template || { templateStrategicPriorities: [] });
 
       const periodResponse = await formulaireInstance.get('/Periode/periodeActel', { params: { type: 'Cadre' } });
       if (periodResponse.data?.length > 0) {
         setCurrentPeriod(periodResponse.data[0].currentPeriod);
+        setEvaluationYear(periodResponse.data[0].year || new Date().getFullYear().toString());
       }
     } catch (error) {
       console.error('Erreur lors de la récupération du Template:', error);
+      setErrorMessage('Erreur lors de la récupération du modèle de formulaire.');
+      setOpenSnackbar(true);
     }
   };
 
   const fetchUserObjectives = async (evalId, userId) => {
     try {
       const response = await formulaireInstance.get('/Evaluation/userObjectif', {
-        params: {
-          evalId,
-          userId
-        }
+        params: { evalId, userId }
       });
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la récupération des objectifs de l'utilisateur :", error);
+      return null;
+    }
+  };
+
+  const fetchSubordinate = async () => {
+    if (!subordinateId) return;
+    try {
+      const response = await authInstance.get(`/User/user/${subordinateId}`);
+      setSubordinate(response.data || {});
+    } catch (error) {
+      console.error('Erreur lors de la récupération des infos du collaborateur:', error);
+      setErrorMessage('Erreur lors de la récupération des informations du collaborateur.');
+      setOpenSnackbar(true);
+    }
+  };
+
+  const fetchUserInfo = async (userId) => {
+    try {
+      const response = await authInstance.get(`/User/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des infos utilisateur:', error);
       return null;
     }
   };
@@ -127,25 +205,40 @@ function ManagerMp({ subordinateId, typeUser }) {
               return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
             });
             setNoObjectivesFound(false);
+            
+            // Vérifier si le collaborateur a rempli ses résultats
+            const hasResultsFilled = objectives.some(obj => 
+              obj.result !== null && obj.result !== undefined && obj.result !== ''
+            );
+            setHasCollaboratorFilledResults(hasResultsFilled);
+            
           } else {
-            console.log('Aucun objectif utilisateur trouvé.');
             setNoObjectivesFound(true);
+            setHasCollaboratorFilledResults(false);
           }
         } catch (error) {
           console.error('Erreur lors de la récupération des objectifs.', error);
+          setErrorMessage('Erreur lors de la récupération des objectifs.');
+          setOpenSnackbar(true);
         }
       }
+      setIsLoading(false);
     };
 
     loadUserObjectives();
   }, [evalId, subordinateId]);
 
   const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
+    // Si c'est déjà validé, ne pas permettre les modifications
+    if (isValidated) {
+      return;
+    }
+    
     setTemplate((prevTemplate) => {
       const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
         if (priority.name !== priorityName) return priority;
 
-        const updatedObjectives = [...priority.objectives];
+        const updatedObjectives = [...(priority.objectives || [])];
 
         if (!updatedObjectives[objectiveIndex]) {
           updatedObjectives[objectiveIndex] = {
@@ -174,7 +267,19 @@ function ManagerMp({ subordinateId, typeUser }) {
             value
           };
         } else {
-          objective[field] = value;
+          if (field === 'weighting' || field === 'result') {
+            let parsedValue = value.replace(',', '.');
+            if (!/^\d{0,3}(\.\d{0,2})?$/.test(parsedValue)) return priority;
+            const numericValue = parseFloat(parsedValue);
+            if (numericValue > 100) {
+              setErrorMessage('La valeur ne peut pas dépasser 100%.');
+              setOpenSnackbar(true);
+              return priority;
+            }
+            objective[field] = parsedValue;
+          } else {
+            objective[field] = value;
+          }
         }
 
         updatedObjectives[objectiveIndex] = objective;
@@ -188,59 +293,166 @@ function ManagerMp({ subordinateId, typeUser }) {
   const checkIfValidated = async () => {
     try {
       const response = await formulaireInstance.get('/Evaluation/getHistoryMidtermeByUser', {
-        params: {
-          userId: subordinateId,
-          type: typeUser,
-        },
+        params: { userId: subordinateId, type: typeUser }
       });
-  
-      // Vérifier si la réponse contient des données
+
       if (response.data && response.data.length > 0) {
-        // Rechercher une entrée validée
         const hasValidatedEntry = response.data.some((entry) => entry.validatedBy);
-  
+
         if (hasValidatedEntry) {
-          setIsValidated(true); // Marquer comme validé
-          console.log('Validation existante détectée');
+          // Utiliser un Map pour éviter les doublons
+          const uniqueValidatorMap = new Map();
+          const history = response.data.filter(entry => entry.validatedBy !== null);
+          
+          history.forEach((entry) => {
+            if (!uniqueValidatorMap.has(entry.validatedBy)) {
+              uniqueValidatorMap.set(entry.validatedBy, entry);
+            } else {
+              const existing = uniqueValidatorMap.get(entry.validatedBy);
+              if (new Date(entry.createdAt) > new Date(existing.createdAt)) {
+                uniqueValidatorMap.set(entry.validatedBy, entry);
+              }
+            }
+          });
+          
+          const uniqueHistory = Array.from(uniqueValidatorMap.values());
+          setValidationHistory(uniqueHistory);
+          
+          const enriched = await Promise.all(
+            uniqueHistory.map(async (entry) => {
+              const userInfo = await fetchUserInfo(entry.validatedBy);
+              const formattedDate = entry.date || entry.createdAt ? new Date(entry.date || entry.createdAt).toLocaleDateString('fr-FR', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : 'Date non disponible';
+              return {
+                ...entry,
+                user: userInfo,
+                formattedDate,
+                status: 'Validé'
+              };
+            })
+          );
+          
+          const sortedEnriched = enriched.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+          setEnrichedValidationHistory(sortedEnriched);
+          setIsValidated(true);
         } else {
-          setIsValidated(false); // Pas de validation
-          console.log('Aucune validation trouvée');
+          setValidationHistory([]);
+          setEnrichedValidationHistory([]);
+          setIsValidated(false);
         }
       } else {
-        setIsValidated(false); // Pas de données dans la réponse
-        console.log('Aucune donnée trouvée');
+        setValidationHistory([]);
+        setEnrichedValidationHistory([]);
+        setIsValidated(false);
       }
     } catch (error) {
       console.error('Erreur lors de la vérification de la validation :', error);
+      setValidationHistory([]);
+      setEnrichedValidationHistory([]);
       setIsValidated(false);
+      if (error.response?.status >= 500) {
+        setErrorMessage('Erreur serveur lors de la vérification des données validées.');
+        setOpenSnackbar(true);
+      }
     }
   };
-  
 
   useEffect(() => {
-    fetchCadreTemplateId();
-    checkOngoingEvaluation();
-    checkIfValidated(); // Vérifie si la validation a déjà été effectuée
-  }, []);
+    const initData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchCadreTemplateId(),
+          checkOngoingEvaluation(),
+          checkIfValidated(),
+          fetchSubordinate()
+        ]);
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation des données:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initData();
+  }, [subordinateId]);
 
   useEffect(() => {
-    fetchTemplate();
+    if (templateId) {
+      fetchTemplate();
+    }
   }, [templateId]);
 
+  const calculateTotalWeighting = (priority) => {
+    return (priority.objectives || []).reduce((sum, obj) => {
+      const weighting = parseFloat(obj.weighting) || 0;
+      return sum + weighting;
+    }, 0);
+  };
+
+  const calculateAverageResult = (priority) => {
+    const objectives = priority.objectives || [];
+    if (objectives.length === 0) return 0;
+    
+    const totalResult = objectives.reduce((sum, obj) => {
+      const result = parseFloat(obj.result) || 0;
+      const weighting = parseFloat(obj.weighting) || 0;
+      return sum + (result * weighting / 100);
+    }, 0);
+    
+    const totalWeighting = calculateTotalWeighting(priority);
+    return totalWeighting > 0 ? (totalResult / totalWeighting * 100) : 0;
+  };
+
+  const calculateOverallTotal = () => {
+    return template.templateStrategicPriorities.reduce((sum, priority) => sum + calculateTotalWeighting(priority), 0);
+  };
+
+  const calculateOverallAverage = () => {
+    const priorities = template.templateStrategicPriorities;
+    if (priorities.length === 0) return 0;
+    
+    let totalWeightedResult = 0;
+    let totalWeighting = 0;
+    
+    priorities.forEach(priority => {
+      const priorityObjectives = priority.objectives || [];
+      priorityObjectives.forEach(obj => {
+        const result = parseFloat(obj.result) || 0;
+        const weighting = parseFloat(obj.weighting) || 0;
+        totalWeightedResult += (result * weighting / 100);
+        totalWeighting += weighting;
+      });
+    });
+    
+    return totalWeighting > 0 ? (totalWeightedResult / totalWeighting * 100) : 0;
+  };
+
   const validateStep = () => {
-    const currentPriority = template.templateStrategicPriorities[activeStep];
+    // Si c'est déjà validé, retourner vrai pour permettre la navigation
+    if (isValidated) {
+      return true;
+    }
+    
+    const currentPriority = getFilteredPriorities()[activeStep];
     if (!currentPriority) return false;
 
     let isAnyObjectiveFilled = false;
 
-    for (const [index, objective] of currentPriority.objectives.entries()) {
-      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator;
-
+    for (const [index, objective] of (currentPriority.objectives || []).entries()) {
+      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator || objective.result;
       const hasDynamicColumns = Array.isArray(objective.dynamicColumns);
       const isAnyDynamicColumnFilled = hasDynamicColumns ? objective.dynamicColumns.some((column) => column.value) : false;
 
       if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result)) {
-        alert(`Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`);
+        setErrorMessage(
+          `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
+        );
+        setOpenSnackbar(true);
         return false;
       }
 
@@ -248,72 +460,147 @@ function ManagerMp({ subordinateId, typeUser }) {
         isAnyObjectiveFilled = true;
 
         if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result) {
-          alert(`Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`);
+          setErrorMessage(
+            `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
+          );
+          setOpenSnackbar(true);
           return false;
         }
       }
     }
 
     if (!isAnyObjectiveFilled) {
-      alert(`Veuillez remplir au moins un objectif pour "${currentPriority.name}".`);
+      setErrorMessage(`Veuillez remplir au moins un objectif pour "${currentPriority.name}".`);
+      setOpenSnackbar(true);
       return false;
     }
 
     return true;
   };
 
-  const steps = template.templateStrategicPriorities.map((priority) => priority.name);
+  const getFilteredPriorities = () => {
+    return template.templateStrategicPriorities.filter(priority => 
+      priority.objectives && priority.objectives.some(obj => 
+        obj.description && obj.description.trim() !== ''
+      )
+    );
+  };
 
-  const validateMitermObjectif = async () => {
+  const getActivePriority = () => {
+    const filteredPriorities = getFilteredPriorities();
+    return filteredPriorities[activeStep];
+  };
+
+  const steps = getFilteredPriorities().map((priority) => priority.name);
+
+  const validateMitermObjectifHistory = async () => {
+  try {
+    // Vérifier si le manager a déjà validé
     if (isValidated) {
-      alert('Vous avez déjà validé les objectifs.');
+      setErrorMessage('Vous avez déjà validé les objectifs mi-parcours pour ce collaborateur.');
+      setOpenSnackbar(true);
       return;
     }
 
-    try {
-      const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
-        priority.objectives.map((objective) => ({
+    // Vérifier si le collaborateur a rempli ses résultats
+    if (!hasCollaboratorFilledResults) {
+      setErrorMessage('Le collaborateur n\'a pas encore rempli ses résultats d\'auto-évaluation.');
+      setOpenSnackbar(true);
+      return;
+    }
+
+    // Préparer les données pour la validation
+    const filteredPriorities = getFilteredPriorities();
+    const objectivesData = filteredPriorities.flatMap((priority) =>
+      (priority.objectives || [])
+        .filter(obj => obj.description && obj.description.trim() !== '')
+        .map((objective) => ({
           objectiveId: objective.objectiveId,
-          indicatorName: priority.name,
+          priorityName: priority.name, // CHANGÉ: de indicatorName à priorityName
           description: objective.description || '',
           weighting: parseFloat(objective.weighting) || 0,
           resultIndicator: objective.resultIndicator || '',
           result: parseFloat(objective.result) || 0,
-          objectiveColumnValues:
+          dynamicColumns:
             objective.dynamicColumns?.map((col) => ({
               columnName: col.columnName,
               value: col.value
             })) || []
         }))
-      );
+    );
 
-      console.log(objectivesData);
-
-      // Vérifier si au moins un objectif est valide
-      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
-        alert('Veuillez remplir au moins un objectif avec tous les champs requis.');
-        return;
-      }
-
-      // Valider les objectifs directement sans signature
-      const response = await formulaireInstance.post('/Evaluation/validateMitermObjectif', objectivesData, {
-        params: {
-          validatorUserId: managerId,
-          userId: subordinateId,
-          type: typeUser
-        }
-      });
-
-      alert(response.data.message || 'Objectifs validés avec succès !');
-      window.location.reload();
-    } catch (error) {
-      if (error.response?.data?.message) {
-        alert(error.response.data.message);
-      } else {
-        alert('Une erreur est survenue lors de la validation.');
-      }
-      console.error('Erreur lors de la validation des objectifs :', error);
+    // Vérifier que tous les champs requis sont remplis
+    if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator && obj.result !== undefined)) {
+      setErrorMessage('Veuillez remplir au moins un objectif avec tous les champs requis (y compris les résultats).');
+      setOpenSnackbar(true);
+      return;
     }
+
+    // Vérifier que tous les résultats sont présents
+    const missingResults = objectivesData.filter(obj => 
+      obj.result === undefined || obj.result === null || isNaN(obj.result)
+    );
+    
+    if (missingResults.length > 0) {
+      setErrorMessage('Le collaborateur n\'a pas rempli tous ses résultats. Veuillez vérifier.');
+      setOpenSnackbar(true);
+      return;
+    }
+
+    // Vérifier que les résultats sont dans la plage valide
+    const invalidResults = objectivesData.filter(obj => 
+      obj.result < 0 || obj.result > 100
+    );
+    
+    if (invalidResults.length > 0) {
+      setErrorMessage('Les résultats doivent être compris entre 0 et 100%.');
+      setOpenSnackbar(true);
+      return;
+    }
+
+    // Appeler l'endpoint avec validateMitermObjectifHistory
+    const response = await formulaireInstance.post('/Evaluation/validateMitermObjectifHistory', objectivesData, {
+      params: {
+        userId: subordinateId,
+        type: typeUser,
+        validatorUserId: managerId // Ajout de l'ID du validateur
+      }
+    });
+    
+
+    // Audit logging
+    await AuditService.logAction(
+      managerId,
+      `Validation manager mi-parcours pour l'évaluation avec evalId: ${evalId} du collaborateur ${subordinateId}`,
+      'Create',
+      null,
+      null,
+      { objectives: objectivesData }
+    );
+
+    alert(response.data.message || 'Validation mi-parcours effectuée avec succès !');
+    window.location.reload();
+  } catch (error) {
+    console.error('Erreur lors de la validation des objectifs mi-parcours :', error);
+    if (error.response?.status === 400 && error.response?.data?.errors) {
+      const errors = Object.values(error.response.data.errors).flat().join(', ');
+      setErrorMessage(`Erreur de validation: ${errors}`);
+    } else {
+      setErrorMessage(error.response?.data?.message || 'Une erreur est survenue lors de la validation.');
+    }
+    setOpenSnackbar(true);
+  }
+};
+
+  const handleConfirmValidation = () => {
+    if (validateStep()) {
+      handleOpenConfirmModal();
+    }
+  };
+
+  const handleFinalValidation = () => {
+    handleCloseConfirmModal();
+    validateMitermObjectifHistory();
   };
 
   const handleNext = () => {
@@ -326,295 +613,702 @@ function ManagerMp({ subordinateId, typeUser }) {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
-  return (
-    <>
-      <Box p={3}>
-        {noObjectivesFound ? (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            Le collaborateur n'a pas encore validé ses objectifs
-          </Alert>
-        ) : (
-          <>
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label, index) => (
-                <Step key={label}>
-                  <StepLabel>{label}</StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+  if (isLoading) {
+    return (
+      <Container
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '80vh',
+          gap: 2
+        }}
+      >
+        <Box sx={{ width: '100%', maxWidth: 400 }}>
+          <Typography variant="h6" align="center" gutterBottom>
+            Chargement des données...
+          </Typography>
+          <LinearProgress />
+          <Typography variant="body2" align="center" sx={{ mt: 2, color: 'text.secondary' }}>
+            Récupération des informations de l'évaluation et du collaborateur
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
 
-            {template.templateStrategicPriorities.length > 0 && activeStep < steps.length && (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeStep}
-                  initial={{ opacity: 0, x: 50 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -50 }}
-                  transition={{ duration: 0.5 }}
-                  style={{ marginTop: '2rem' }}
-                >
-                  <Card>
-                    <CardContent>
-                      <Typography
-                        variant="h5"
-                        gutterBottom
-                        sx={{
-                          marginBottom: '20px',
-                          backgroundColor: '#fafafa',
-                          padding: 3,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}
-                      >
-                        {template.templateStrategicPriorities[activeStep].name}
-                        <IconTargetArrow style={{ color: '#3F51B5' }} />
-                      </Typography>
+  if (!hasOngoingEvaluation) {
+    return (
+      <Container
+        maxWidth="sm"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '70vh'
+        }}
+      >
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }}>
+          <Card
+            sx={{
+              boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.12)',
+              borderRadius: '16px',
+              overflow: 'hidden'
+            }}
+          >
+            <CardContent
+              sx={{
+                padding: 4,
+                textAlign: 'center',
+                backgroundColor: 'background.paper',
+                color: 'text.primary'
+              }}
+            >
+              <Box
+                sx={{
+                  marginBottom: 3,
+                  padding: 2,
+                  borderRadius: '12px',
+                  backgroundColor: 'primary.lighter',
+                  border: '1px solid',
+                  borderColor: 'primary.main'
+                }}
+              >
+                <Typography variant="h4" fontWeight="bold" color="primary.main">
+                  Aucune évaluation en cours
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ marginTop: 1 }}>
+                  Vous serez informé dès le commencement d'une nouvelle évaluation.
+                </Typography>
+              </Box>
 
-                      <Grid container spacing={3}>
-                        {Array.from({ length: template.templateStrategicPriorities[activeStep].maxObjectives }).map((_, objIndex) => {
-                          const objective = template.templateStrategicPriorities[activeStep].objectives[objIndex] || {};
-
-                          return (
-                            <Grid item xs={12} key={objIndex}>
-                              <Paper sx={{ p: 3, backgroundColor: '#e8eaf6' }}>
-                                <Typography variant="h6" sx={{ mb: '20px' }} gutterBottom>
-                                  Objectif {objIndex + 1}
-                                </Typography>
-                                <Grid container spacing={2}>
-                                  <Grid item xs={12} sm={12}>
-                                    <TextField
-                                      label={
-                                        <span>
-                                          Description de l'Objectif <span style={{ color: 'red' }}>*</span>
-                                        </span>
-                                      }
-                                      fullWidth
-                                      variant="outlined"
-                                      multiline
-                                      minRows={2}
-                                      value={objective.description || ''}
-                                      onChange={(e) =>
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'description',
-                                          e.target.value
-                                        )
-                                      }
-                                    />
-                                  </Grid>
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      label={
-                                        <span>
-                                          Pondération <span style={{ color: 'red' }}>*</span>
-                                        </span>
-                                      }
-                                      fullWidth
-                                      variant="outlined"
-                                      type="number"
-                                      inputProps={{ min: 0, max: 100, step: 0.01, maxLength: 6 }}
-                                      value={objective.weighting || ''}
-                                      onChange={(e) => {
-                                        let value = e.target.value.replace(',', '.');
-                                        if (!/^\d{0,3}(\.\d{0,2})?$/.test(value)) return;
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'weighting',
-                                          value
-                                        );
-                                      }}
-                                      InputProps={{
-                                        endAdornment: <InputAdornment position="end">%</InputAdornment>
-                                      }}
-                                    />
-                                  </Grid>
-
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      label={
-                                        <span>
-                                          Indicateur de résultat <span style={{ color: 'red' }}>*</span>
-                                        </span>
-                                      }
-                                      fullWidth
-                                      variant="outlined"
-                                      multiline
-                                      minRows={2}
-                                      value={objective.resultIndicator || ''}
-                                      onChange={(e) =>
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'resultIndicator',
-                                          e.target.value
-                                        )
-                                      }
-                                    />
-                                  </Grid>
-
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      label={
-                                        <span>
-                                          Resultat <span style={{ color: 'red' }}>*</span>
-                                        </span>
-                                      }
-                                      fullWidth
-                                      variant="outlined"
-                                      type="number"
-                                      inputProps={{ min: 0, max: 100, step: 0.01, maxLength: 6 }}
-                                      value={objective.result || ''}
-                                      onChange={(e) => {
-                                        let value = e.target.value.replace(',', '.');
-                                        if (!/^\d{0,3}(\.\d{0,2})?$/.test(value)) return;
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'result',
-                                          value
-                                        );
-                                      }}
-                                      InputProps={{
-                                        endAdornment: <InputAdornment position="end">%</InputAdornment>
-                                      }}
-                                    />
-                                  </Grid>
-
-                                  {Array.isArray(objective.dynamicColumns) &&
-                                    objective.dynamicColumns.map((column, colIndex) => (
-                                      <Grid item xs={12} key={colIndex}>
-                                        <Box sx={{ mb: 2 }}>
-                                          <Typography variant="subtitle3" gutterBottom>
-                                            {column.columnName || `Colonne ${colIndex + 1}`}
-                                          </Typography>
-                                          <TextField
-                                            fullWidth
-                                            variant="outlined"
-                                            multiline
-                                            minRows={2}
-                                            value={column.value || ''}
-                                            onChange={(e) =>
-                                              handleObjectiveChange(
-                                                template.templateStrategicPriorities[activeStep].name,
-                                                objIndex,
-                                                'dynamicColumns',
-                                                e.target.value,
-                                                colIndex
-                                              )
-                                            }
-                                          />
-                                        </Box>
-                                      </Grid>
-                                    ))}
-                                </Grid>
-                              </Paper>
-                            </Grid>
-                          );
-                        })}
-                      </Grid>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </AnimatePresence>
-            )}
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
               <Button
-                disabled={activeStep === 0}
-                onClick={handleBack}
                 variant="contained"
                 color="primary"
-                startIcon={<KeyboardArrowLeft />}
+                size="large"
+                onClick={() => navigate('/dashboard/default')}
+                sx={{
+                  padding: '10px 32px',
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.2)'
+                  }
+                }}
               >
-                Précédent
+                Retour à l'accueil
               </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </Container>
+    );
+  }
 
-              {activeStep === steps.length - 1 ? (
-                <Button
-                  variant="contained"
-                  color="success"
-                  disabled={isValidated}
-                  onClick={() => {
-                    if (validateStep()) {
-                      validateMitermObjectif();
-                    }
-                  }}
-                >
-                  {isValidated ? 'Déjà validé' : 'Valider'}
-                </Button>
-              ) : (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => {
-                    if (validateStep()) {
-                      handleNext();
-                    }
-                  }}
-                  endIcon={<KeyboardArrowRight />}
-                >
-                  Suivant
-                </Button>
-              )}
-            </Box>
-
-            {/* Modal pour la signature */}
-            {/* <Dialog open={openSignatureModal} onClose={handleCloseSignatureModal}>
-              <DialogTitle>Veuillez signer pour continuer</DialogTitle>
-              <DialogContent>
-                <input type="file" accept="image/*" onChange={handleSignatureFileChange} />
-                <Typography variant="body2" sx={{ mt: 2 }}>
-                  Choisissez une image contenant votre signature.
+  return (
+    <>
+      <Paper>
+        {showHeader && (
+          <Box sx={{ mb: 2, p: 2, backgroundColor: 'background.paper', borderRadius: 1 }}>
+            <Grid container alignItems="center" justifyContent="space-between">
+              <Grid item xs={12} md={8}>
+                <Typography variant="h3">
+                  <span>{currentPeriod} - {evaluationYear}</span>
                 </Typography>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={handleCloseSignatureModal}>Annuler</Button>
-                <Button
-                  onClick={() => {
-                    // Une fois qu'on a choisi la signature, on ferme la modal
-                    handleCloseSignatureModal();
-                    validateMitermObjectif();
-                  }}
-                  variant="contained"
-                  color="primary"
-                >
-                  Confirmer
-                </Button>
-              </DialogActions>
-            </Dialog> */}
+                <Grid container spacing={2} sx={{ mt: 1 }} alignItems="center">
+                  <Grid item xs={12}>
+                    <Box sx={{ p: 1, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+                      <Typography variant="body1" fontWeight="bold">
+                        Nom: {subordinate.name || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Matricule: {subordinate.matricule || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Poste: {subordinate.poste || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        <strong>Auto-évaluation :</strong> 
+                        <Box component="span" sx={{ 
+                          ml: 1,
+                          color: hasCollaboratorFilledResults ? 'success.main' : 'warning.main',
+                          fontWeight: 'bold'
+                        }}>
+                          {hasCollaboratorFilledResults ? 'Résultats saisis ✓' : 'En attente de résultats'}
+                        </Box>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        <strong>Statut :</strong> 
+                        <Box component="span" sx={{ 
+                          ml: 1,
+                          color: isValidated ? 'success.main' : 'info.main',
+                          fontWeight: 'bold'
+                        }}>
+                          {isValidated ? 'Validé ✓' : 'À valider'}
+                        </Box>
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Grid>
+              <Grid item sx={{ display: 'flex', gap: 1 }}>
+                <Tooltip title="Historique de validation" arrow>
+                  <IconButton aria-label="historique" onClick={handleOpenHistoryModal}>
+                    <HistoryIcon sx={{ fontSize: 20, color: 'black' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Besoin d'aide ?" arrow>
+                  <IconButton aria-label="aide" onClick={handleOpenHelpModal}>
+                    <HelpIcon sx={{ fontSize: 20, color: 'black' }} />
+                  </IconButton>
+                </Tooltip>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
 
-            {/* <Dialog open={openNoSignatureModal} onClose={() => setOpenNoSignatureModal(false)}>
-              <DialogTitle>Signature manquante</DialogTitle>
-              <DialogContent>
-                <Typography variant="body1">
-                  Vous n’avez pas encore de signature enregistrée. Veuillez{' '}
-                  <Typography
-                    component="span"
-                    onClick={() => navigate('/collab/profile')}
-                    sx={{
-                      color: '#1976d2',
-                      textDecoration: 'none',
+        <Box sx={{ p: 1 }}>
+          {noObjectivesFound ? (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Le collaborateur n'a pas encore défini ses objectifs pour la période de fixation
+            </Alert>
+          ) : (
+            <>
+              {isValidated ? (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  L'évaluation mi-parcours a déjà été validée. Les modifications ne sont plus possibles.
+                </Alert>
+              ) : !hasCollaboratorFilledResults ? (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Le collaborateur n'a pas encore rempli son auto-évaluation (résultats). 
+                  Vous pouvez modifier les objectifs mais la validation sera possible seulement après que le collaborateur ait saisi ses résultats.
+                </Alert>
+              ) : null}
+
+              <Stepper activeStep={activeStep} alternativeLabel sx={{ 
+                fontSize: '0.75rem', 
+                mb: 2,
+                '& .MuiStepLabel-root': { fontSize: '0.75rem' },
+                '& .MuiStep-root': { minHeight: 'auto' },
+                height: 'auto'
+              }}>
+                {steps.map((label, index) => {
+                  const priority = getFilteredPriorities()[index];
+                  const totalWeight = calculateTotalWeighting(priority).toFixed(1);
+                  const averageResult = calculateAverageResult(priority).toFixed(1);
+                  return (
+                    <Step key={label}>
+                      <StepLabel>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block' }}>{label}</Typography>
+                          <Typography variant="caption" color="primary" sx={{ fontSize: '0.6rem', display: 'block' }}>
+                            Pond: {totalWeight}%
+                          </Typography>
+                          <Typography variant="caption" color="secondary" sx={{ fontSize: '0.6rem', display: 'block' }}>
+                            Résultat: {averageResult}%
+                          </Typography>
+                        </Box>
+                      </StepLabel>
+                    </Step>
+                  );
+                })}
+              </Stepper>
+
+              {/* Affichage simplifié des totaux globaux */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: 2, 
+                mb: 3,
+                flexWrap: 'wrap'
+              }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  p: 1.5,
+                  minWidth: '140px'
+                }}>
+                  <Box sx={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    mb: 0.5
+                  }}>
+                    <Box sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      backgroundColor: calculateOverallTotal() === 100 ? '#4caf50' : 
+                                      calculateOverallTotal() > 100 ? '#f44336' : '#ff9800',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {calculateOverallTotal() === 100 ? '✓' : 
+                      calculateOverallTotal() > 100 ? '✗' : '!'}
+                    </Box>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'medium' }}>
+                      Pondération
+                    </Typography>
+                  </Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
                       fontWeight: 'bold',
-                      cursor: 'pointer'
+                      color: calculateOverallTotal() === 100 ? '#4caf50' : 
+                            calculateOverallTotal() > 100 ? '#f44336' : '#ff9800'
                     }}
                   >
-                    cliquer ici
-                  </Typography>{' '}
-                  pour continuer.
-                </Typography>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setOpenNoSignatureModal(false)} variant="contained" color="primary">
-                  Fermer
+                    {calculateOverallTotal().toFixed(1)}%
+                  </Typography>
+                </Box>
+
+                <Divider orientation="vertical" flexItem sx={{ height: 'auto' }} />
+
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  p: 1.5,
+                  minWidth: '140px'
+                }}>
+                  <Box sx={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    mb: 0.5
+                  }}>
+                    <Box sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      backgroundColor: calculateOverallAverage() >= 80 ? '#4caf50' : 
+                                      calculateOverallAverage() >= 60 ? '#ff9800' : '#f44336',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {calculateOverallAverage() >= 80 ? '✓' : 
+                      calculateOverallAverage() >= 60 ? '⚠' : '✗'}
+                    </Box>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'medium' }}>
+                      Moyenne
+                    </Typography>
+                  </Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 'bold',
+                      color: calculateOverallAverage() >= 80 ? '#4caf50' : 
+                            calculateOverallAverage() >= 60 ? '#ff9800' : '#f44336'
+                    }}
+                  >
+                    {calculateOverallAverage().toFixed(1)}%
+                  </Typography>
+                </Box>
+              </Box>
+
+              {getFilteredPriorities().length > 0 && activeStep < steps.length && (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeStep}
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -50 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <Card sx={{ mb: 2 }}>
+                      <CardContent sx={{ p: 2 }}>
+                        <Typography
+                          variant="h5"
+                          gutterBottom
+                          sx={{
+                            marginBottom: 2,
+                            backgroundColor: '#fafafa',
+                            padding: 2,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderRadius: 1
+                          }}
+                        >
+                          <Box>
+                            {getActivePriority()?.name}
+                            <Typography variant="body2" color="text.secondary">
+                              Pondération totale: {calculateTotalWeighting(getActivePriority()).toFixed(1)}%
+                              | Résultat moyen: {calculateAverageResult(getActivePriority()).toFixed(1)}%
+                            </Typography>
+                          </Box>
+                          <IconTargetArrow style={{ color: '#3F51B5' }} />
+                        </Typography>
+
+                        <Grid container spacing={2}>
+                          {(getActivePriority()?.objectives || [])
+                            .filter(obj => obj.description && obj.description.trim() !== '')
+                            .map((objective, objIndex) => (
+                              <Grid item xs={12} key={objIndex}>
+                                <Paper sx={{ p: 2, backgroundColor: '#e8eaf6', borderRadius: 2 }}>
+                                  <Typography variant="h6" sx={{ mb: 2 }} gutterBottom>
+                                    Objectif {objIndex + 1}
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={12}>
+                                      <TextField
+                                        label="Description de l'Objectif"
+                                        fullWidth
+                                        variant="outlined"
+                                        multiline
+                                        minRows={3}
+                                        value={objective.description || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'description',
+                                            e.target.value
+                                          )
+                                        }
+                                        disabled={isValidated}
+                                      />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                      <TextField
+                                        label="Pondération"
+                                        fullWidth
+                                        variant="outlined"
+                                        type="text"
+                                        value={objective.weighting || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'weighting',
+                                            e.target.value
+                                          )
+                                        }
+                                        error={parseFloat(objective.weighting) > 100}
+                                        helperText={parseFloat(objective.weighting) > 100 ? 'Maximum 100%' : ''}
+                                        InputProps={{
+                                          endAdornment: <InputAdornment position="end">%</InputAdornment>
+                                        }}
+                                        disabled={isValidated}
+                                      />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                      <TextField
+                                        label="Résultat (auto-évaluation)"
+                                        fullWidth
+                                        variant="outlined"
+                                        type="text"
+                                        value={objective.result || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'result',
+                                            e.target.value
+                                          )
+                                        }
+                                        error={parseFloat(objective.result) > 100}
+                                        helperText={parseFloat(objective.result) > 100 ? 'Maximum 100%' : ''}
+                                        InputProps={{
+                                          endAdornment: <InputAdornment position="end">%</InputAdornment>
+                                        }}
+                                        disabled={isValidated || !hasCollaboratorFilledResults}
+                                      />
+                                    </Grid>
+
+                                    <Grid item xs={12}>
+                                      <TextField
+                                        label="Indicateur de résultat"
+                                        fullWidth
+                                        variant="outlined"
+                                        multiline
+                                        minRows={3}
+                                        value={objective.resultIndicator || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'resultIndicator',
+                                            e.target.value
+                                          )
+                                        }
+                                        disabled={isValidated}
+                                      />
+                                    </Grid>
+
+                                    {Array.isArray(objective.dynamicColumns) &&
+                                      objective.dynamicColumns.map((column, colIndex) => (
+                                        <Grid item xs={12} key={colIndex}>
+                                          <Box sx={{ mb: 1 }}>
+                                            <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+                                              {column.columnName || `Colonne ${colIndex + 1}`}
+                                            </Typography>
+                                            <TextField
+                                              fullWidth
+                                              variant="outlined"
+                                              multiline
+                                              minRows={2}
+                                              value={column.value || ''}
+                                              onChange={(e) =>
+                                                handleObjectiveChange(
+                                                  getActivePriority().name,
+                                                  objIndex,
+                                                  'dynamicColumns',
+                                                  e.target.value,
+                                                  colIndex
+                                                )
+                                              }
+                                              disabled={isValidated}
+                                            />
+                                          </Box>
+                                        </Grid>
+                                      ))}
+                                  </Grid>
+                                </Paper>
+                              </Grid>
+                            ))}
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </AnimatePresence>
+              )}
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                <Button
+                  disabled={activeStep === 0}
+                  onClick={handleBack}
+                  variant="contained"
+                  color="primary"
+                  startIcon={<KeyboardArrowLeft />}
+                  sx={{ minWidth: 120 }}
+                >
+                  Précédent
                 </Button>
-              </DialogActions>
-            </Dialog> */}
-          </>
-        )}
-      </Box>
+
+                {activeStep === steps.length - 1 ? (
+                  isValidated ? (
+                    <Button variant="contained" color="secondary" disabled sx={{ minWidth: 120 }}>
+                      Déjà validé
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      color="success"
+                      onClick={handleConfirmValidation}
+                      disabled={!hasCollaboratorFilledResults || isValidated}
+                      sx={{ minWidth: 120 }}
+                    >
+                      {hasCollaboratorFilledResults ? 'Valider' : 'En attente auto-évaluation'}
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      if (validateStep()) {
+                        handleNext();
+                      }
+                    }}
+                    endIcon={<KeyboardArrowRight />}
+                    sx={{ minWidth: 120 }}
+                  >
+                    Suivant
+                  </Button>
+                )}
+              </Box>
+
+              {/* Boîte de dialogue de confirmation */}
+              <Dialog open={openConfirmModal} onClose={handleCloseConfirmModal} aria-labelledby="confirm-dialog-title">
+                <DialogTitle id="confirm-dialog-title">Confirmation de validation mi-parcours</DialogTitle>
+                <DialogContent dividers>
+                  <Typography variant="body1" gutterBottom>
+                    Êtes-vous sûr de vouloir valider les résultats mi-parcours de ce collaborateur ?
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                    Cette action est irréversible. Une fois validés :
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 2, mt: 1 }}>
+                    <Typography component="li" variant="body2" color="textSecondary">
+                      Le collaborateur ne pourra plus modifier ses résultats d'auto-évaluation
+                    </Typography>
+                    <Typography component="li" variant="body2" color="textSecondary">
+                      Vous pourrez toujours modifier les objectifs et résultats si nécessaire
+                    </Typography>
+                    <Typography component="li" variant="body2" color="textSecondary">
+                      La validation sera enregistrée dans l'historique
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mt: 2, p: 1.5, backgroundColor: '#fff8e1', borderRadius: 1, border: '1px solid #ffd54f' }}>
+                    <Typography variant="body2" color="textSecondary">
+                      <strong>Collaborateur :</strong> {subordinate.name || 'N/A'} ({subordinate.matricule || 'N/A'})
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Période :</strong> {currentPeriod} - {evaluationYear}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Auto-évaluation :</strong> {hasCollaboratorFilledResults ? 'Résultats saisis ✓' : 'En attente'}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Total pondération :</strong> {calculateOverallTotal().toFixed(1)}%
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Moyenne globale :</strong> {calculateOverallAverage().toFixed(1)}%
+                    </Typography>
+                  </Box>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseConfirmModal} color="primary">
+                    Annuler
+                  </Button>
+                  <Button onClick={handleFinalValidation} color="success" variant="contained" autoFocus>
+                    Confirmer la validation
+                  </Button>
+                </DialogActions>
+              </Dialog>
+
+              <Dialog open={openHelpModal} onClose={handleCloseHelpModal} aria-labelledby="help-dialog-title" maxWidth="md">
+                <DialogTitle id="help-dialog-title">Aide - Évaluation Mi-Parcours</DialogTitle>
+                <DialogContent dividers>
+                  <Typography variant="h6" gutterBottom>
+                    Pendant cette période
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    Le collaborateur a fait son auto-évaluation en remplissant ses résultats. Vous devez maintenant :
+                  </Typography>
+                  <Box component="ol" sx={{ pl: 3, mt: 2 }}>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Consultez les objectifs fixés précédemment et les résultats d'auto-évaluation du collaborateur
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Si nécessaire, vous pouvez modifier les objectifs, pondérations ou indicateurs
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Vous pouvez également ajuster les résultats d'auto-évaluation si vous n'êtes pas d'accord
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Cliquez sur <strong>"Suivant"</strong> pour examiner chaque priorité stratégique
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Une fois toutes les étapes terminées, cliquez sur le bouton <strong>"Valider"</strong> pour finaliser l'évaluation mi-parcours
+                    </Typography>
+                  </Box>
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Note :</strong> Vous pouvez modifier les objectifs et résultats tant que vous n'avez pas validé. 
+                      Après validation, le collaborateur ne pourra plus modifier ses résultats d'auto-évaluation.
+                    </Typography>
+                  </Alert>
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Important :</strong> Vous ne pouvez valider que si le collaborateur a rempli son auto-évaluation.
+                      Le bouton de validation sera désactivé jusqu'à ce que le collaborateur ait saisi ses résultats.
+                    </Typography>
+                  </Alert>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseHelpModal} color="primary">
+                    Fermer
+                  </Button>
+                </DialogActions>
+              </Dialog>
+
+              <Dialog open={openHistoryModal} onClose={handleCloseHistoryModal} aria-labelledby="history-dialog-title" maxWidth="sm" fullWidth>
+                <DialogTitle id="history-dialog-title">Historique de validation mi-parcours</DialogTitle>
+                <DialogContent dividers sx={{ p: 0 }}>
+                  {enrichedValidationHistory.length > 0 ? (
+                    <List sx={{ width: '100%', bgcolor: 'background.paper', maxHeight: 400, overflow: 'auto' }}>
+                      {enrichedValidationHistory.map((entry, index) => (
+                        <React.Fragment key={index}>
+                          <ListItem alignItems="flex-start" sx={{ p: 2 }}>
+                            <ListItemAvatar>
+                              <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                {entry.user?.name?.charAt(0) || 'U'}
+                              </Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                  <Typography
+                                    sx={{ display: 'inline', fontWeight: 'bold', mr: 1 }}
+                                  >
+                                    {entry.user?.name || 'Utilisateur inconnu'}
+                                  </Typography>
+                                  <Chip label={entry.status} size="small" color="success" />
+                                </Box>
+                              }
+                              secondary={
+                                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.primary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
+                                    Matricule: {entry.user?.matricule || 'N/A'}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.primary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
+                                    Poste: {entry.user?.poste || 'N/A'}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.secondary"
+                                  >
+                                    {entry.formattedDate}
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                          </ListItem>
+                          {index < enrichedValidationHistory.length - 1 && <Divider variant="inset" component="li" />}
+                        </React.Fragment>
+                      ))}
+                    </List>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        Aucun historique de validation mi-parcours pour le moment.
+                      </Typography>
+                    </Box>
+                  )}
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseHistoryModal} color="primary">
+                    Fermer
+                  </Button>
+                </DialogActions>
+              </Dialog>
+            </>
+          )}
+        </Box>
+
+        <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+          <Alert onClose={handleCloseSnackbar} severity="error" sx={{ width: '100%' }}>
+            {errorMessage}
+          </Alert>
+        </Snackbar>
+      </Paper>
     </>
   );
 }

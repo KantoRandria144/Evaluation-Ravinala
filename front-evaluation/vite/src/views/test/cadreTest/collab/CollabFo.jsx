@@ -13,11 +13,13 @@ import {
   CardContent,
   Grid,
   Paper,
-  Dialog,             // ***
-  DialogTitle,         // ***
-  DialogContent,       // ***
-  DialogActions        // ***
-} from '@mui/material'; // Assurez-vous que ces imports sont corrects
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress, // *** Ajout du loader
+  Backdrop // *** Pour le fond semi-transparent
+} from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
 import { IconTargetArrow } from '@tabler/icons-react';
@@ -36,12 +38,12 @@ function CollabFo() {
   const [template, setTemplate] = useState({ templateStrategicPriorities: [] });
   const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [signatureFile, setSignatureFile] = useState(null); // Signature
-  const [openSignatureModal, setOpenSignatureModal] = useState(false); // État modal signature
+  const [isLoading, setIsLoading] = useState(true); // *** État pour le chargement global
+  const [loadingObjectives, setLoadingObjectives] = useState(false); // *** État spécifique pour les objectifs
+  const [signatureFile, setSignatureFile] = useState(null);
+  const [openSignatureModal, setOpenSignatureModal] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
   const [openNoSignatureModal, setOpenNoSignatureModal] = useState(false);
-
 
   // *** Fonctions pour la modal de signature
   const handleOpenSignatureModal = () => {
@@ -58,13 +60,14 @@ function CollabFo() {
     }
   };
 
-  // Fetch fonctions...
+  // *** Fetch fonctions...
   const fetchCadreTemplateId = async () => {
     try {
       const response = await formulaireInstance.get('/Template/CadreTemplate');
       if (response.data?.templateId) setTemplateId(response.data.templateId);
     } catch (error) {
       console.error('Erreur lors de la récupération du Template ID:', error);
+      setIsLoading(false);
     }
   };
 
@@ -78,6 +81,7 @@ function CollabFo() {
       setEvalId(evaluationId);
     } catch (error) {
       console.error('Erreur lors de la vérification des évaluations:', error);
+      setIsLoading(false);
     }
   };
 
@@ -95,10 +99,12 @@ function CollabFo() {
       }
     } catch (error) {
       console.error('Erreur lors de la récupération du Template:', error);
+      setIsLoading(false);
     }
   };
 
   const fetchUserObjectives = async (evalId, userId) => {
+    setLoadingObjectives(true); // *** Début du chargement
     try {
       const response = await formulaireInstance.get('/Evaluation/userObjectif', {
         params: {
@@ -106,13 +112,15 @@ function CollabFo() {
           userId,
         },
       });
-      return response.data; 
+      return response.data;
     } catch (error) {
       console.error("Erreur lors de la récupération des objectifs de l'utilisateur :", error);
       return null;
+    } finally {
+      setLoadingObjectives(false); // *** Fin du chargement
     }
   };
-  
+
   useEffect(() => {
     const loadUserObjectives = async () => {
       if (evalId && userId) {
@@ -125,7 +133,7 @@ function CollabFo() {
                 const priorityObjectives = objectives.filter(
                   (obj) => obj.templateStrategicPriority.name === priority.name
                 );
-  
+
                 return {
                   ...priority,
                   objectives: priorityObjectives.map((obj) => ({
@@ -141,7 +149,7 @@ function CollabFo() {
                   })),
                 };
               });
-  
+
               return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
             });
           } else {
@@ -152,9 +160,79 @@ function CollabFo() {
         }
       }
     };
-  
+
     loadUserObjectives();
   }, [evalId, userId]);
+
+  const checkIfValidated = async () => {
+    try {
+      const response = await formulaireInstance.get('/Evaluation/getUserObjectivesHistory', {
+        params: {
+          userId,
+          type: userType,
+        },
+      });
+
+      if (response.data && response.data.historyCFos && response.data.historyCFos.length > 0) {
+        const validatedEntry = response.data.historyCFos.find((entry) => entry.validatedBy);
+        if (validatedEntry) {
+          setIsValidated(true);
+          console.log("Validation trouvée :", validatedEntry);
+        } else {
+          setIsValidated(false);
+        }
+      } else {
+        setIsValidated(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des données validées :', error);
+      setIsValidated(false);
+    }
+  };
+
+  useEffect(() => {
+    const initializeData = async () => {
+      setIsLoading(true); // *** Début du chargement global
+      try {
+        await Promise.all([
+          fetchCadreTemplateId(),
+          checkOngoingEvaluation(),
+          checkIfValidated()
+        ]);
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation des données:', error);
+      } finally {
+        setIsLoading(false); // *** Fin du chargement global
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  useEffect(() => {
+    if (templateId) {
+      fetchTemplate();
+    }
+  }, [templateId]);
+
+  // *** Fonction pour rendre le loader
+  const renderLoader = () => (
+    <Backdrop
+      sx={{
+        color: '#fff',
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2
+      }}
+      open={isLoading || loadingObjectives}
+    >
+      <CircularProgress color="inherit" />
+      <Typography variant="h6">
+        {isLoading ? 'Chargement des données...' : 'Récupération de vos objectifs...'}
+      </Typography>
+    </Backdrop>
+  );
 
   const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
     setTemplate((prevTemplate) => {
@@ -200,44 +278,6 @@ function CollabFo() {
     });
   };
 
-  const checkIfValidated = async () => {
-    try {
-      const response = await formulaireInstance.get('/Evaluation/getUserObjectivesHistory', {
-        params: {
-          userId,
-          type: userType,
-        },
-      });
-  
-      // Vérifiez si les données existent et contiennent un tableau d'éléments
-      if (response.data && response.data.historyCFos && response.data.historyCFos.length > 0) {
-        // Cherchez un enregistrement avec un champ `validatedBy` non vide
-        const validatedEntry = response.data.historyCFos.find((entry) => entry.validatedBy);
-        if (validatedEntry) {
-          setIsValidated(true); // Marque que les données sont validées
-          console.log("Validation trouvée :", validatedEntry);
-        } else {
-          setIsValidated(false); // Pas de données validées
-        }
-      } else {
-        setIsValidated(false); // Pas d'historique
-      }
-    } catch (error) {
-      console.error('Erreur lors de la vérification des données validées :', error);
-      setIsValidated(false); // En cas d'erreur, marquer comme non validé
-    }
-  };  
-
-  useEffect(() => {
-    fetchCadreTemplateId();
-    checkOngoingEvaluation();   
-    checkIfValidated();
-  }, []);
-
-  useEffect(() => {
-    fetchTemplate();
-  }, [templateId]);
-
   const validateStep = () => {
     const currentPriority = template.templateStrategicPriorities[activeStep];
     if (!currentPriority) return false;
@@ -278,10 +318,10 @@ function CollabFo() {
     }
 
     return true;
-  };  
+  };
 
   const steps = template.templateStrategicPriorities.map((priority) => priority.name);
-  
+
   const validateUserObjectives = async () => {
     try {
       const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
@@ -299,71 +339,64 @@ function CollabFo() {
             })) || []
         }))
       );
-  
-      // Vérifier si au moins un objectif est valide
+
       if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
         alert('Veuillez remplir au moins un objectif avec tous les champs requis.');
         return;
       }
-  
-      // Vérifier si un fichier de signature est sélectionné
+
       if (!signatureFile) {
         alert('Veuillez fournir un fichier de signature avant de valider vos objectifs.');
         handleOpenSignatureModal();
         return;
       }
-  
-      // Lire le fichier en Base64
+
       const fileReader = new FileReader();
       fileReader.onloadend = async () => {
         const base64String = fileReader.result;
-        const imageBase64 = base64String.split(',')[1]; // Extraire uniquement la chaîne Base64
-  
+        const imageBase64 = base64String.split(',')[1];
+
         try {
-          // Étape 1 : Comparer et valider la signature
           const compareResponse = await authInstance.post(
             `/Signature/compare-user-signature/${userId}`,
             { imageBase64 },
             { headers: { 'Content-Type': 'application/json' } }
           );
-  
+
           if (!compareResponse.data.isMatch) {
             alert('Votre signature ne correspond pas à celle enregistrée. Veuillez réessayer.');
             handleOpenSignatureModal();
             return;
           }
-  
-          // Étape 2 : Valider les objectifs
+
           const response = await formulaireInstance.post('/Evaluation/validateUserObjectives', objectivesData, {
             params: {
               userId: userId,
               type: userType,
             },
           });
-  
+
           alert(response.data.message || 'Objectifs validés avec succès !');
           window.location.reload();
         } catch (error) {
           if (error.response?.data?.message) {
-            // Si le backend retourne un message spécifique, on l'affiche
             alert(error.response.data.message);
           } else {
-            // Message générique pour d'autres erreurs
             alert('Une erreur est survenue lors de la validation.');
           }
           console.error('Erreur lors de la validation des objectifs :', error);
         }
       };
-  
+
       fileReader.onerror = () => {
         alert("Impossible de lire le fichier de signature. Veuillez réessayer.");
       };
-  
+
       fileReader.readAsDataURL(signatureFile);
-      } catch (error) {
-        console.error('Erreur lors de la validation des objectifs :', error);
-        alert('Une erreur imprévue est survenue.');
-      }
+    } catch (error) {
+      console.error('Erreur lors de la validation des objectifs :', error);
+      alert('Une erreur imprévue est survenue.');
+    }
   };
 
   const updateUserObjectives = async () => {
@@ -386,13 +419,13 @@ function CollabFo() {
           })) || [],
         }))
       );
-  
+
       if (!signatureFile) {
         alert('Veuillez fournir un fichier de signature avant de valider vos objectifs.');
         handleOpenSignatureModal();
         return;
       }
-  
+
       const convertFileToBase64 = (file) => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -401,34 +434,34 @@ function CollabFo() {
           reader.readAsDataURL(file);
         });
       };
-  
+
       const base64Signature = await convertFileToBase64(signatureFile);
-  
+
       const compareResponse = await authInstance.post(
         `/Signature/compare-user-signature/${userId}`,
         { ImageBase64: base64Signature }
       );
-  
+
       if (!compareResponse.data.isMatch) {
         alert('Votre signature ne correspond pas à celle enregistrée. Veuillez réessayer.');
         handleOpenSignatureModal();
         return;
       }
-  
+
       const response = await formulaireInstance.put('/Evaluation/userObjectif', objectivesData, {
         params: {
           evalId,
           userId,
         },
       });
-  
+
       alert(response.data.Message || 'Objectifs mis à jour avec succès !');
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de la mise à jour des objectifs :', error);
       alert(error.response?.data?.Message || 'Une erreur est survenue lors de la mise à jour.');
     }
-  };  
+  };
 
   const handleNext = () => {
     if (validateStep()) {
@@ -442,6 +475,8 @@ function CollabFo() {
 
   return (
     <>
+      {renderLoader()} {/* *** Affiche le loader pendant le chargement */}
+      
       <Paper>
         <MainCard>
           <Grid container alignItems="center" justifyContent="space-between">
@@ -523,6 +558,7 @@ function CollabFo() {
                                           e.target.value
                                         )
                                       }
+                                      disabled={loadingObjectives} // *** Désactive le champ pendant le chargement
                                     />
                                   </Grid>
                                   <Grid item xs={12}>
@@ -547,6 +583,7 @@ function CollabFo() {
                                           value
                                         );
                                       }}
+                                      disabled={loadingObjectives} // *** Désactive le champ pendant le chargement
                                     />
                                   </Grid>
 
@@ -570,6 +607,7 @@ function CollabFo() {
                                           e.target.value
                                         )
                                       }
+                                      disabled={loadingObjectives} // *** Désactive le champ pendant le chargement
                                     />
                                   </Grid>
 
@@ -595,6 +633,7 @@ function CollabFo() {
                                                 colIndex
                                               )
                                             }
+                                            disabled={loadingObjectives} // *** Désactive le champ pendant le chargement
                                           />
                                         </Box>
                                       </Grid>
@@ -613,7 +652,7 @@ function CollabFo() {
 
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
               <Button
-                disabled={activeStep === 0}
+                disabled={activeStep === 0 || loadingObjectives || isLoading} // *** Désactive le bouton pendant le chargement
                 onClick={handleBack}
                 variant="contained"
                 color="primary"
@@ -640,6 +679,7 @@ function CollabFo() {
                         }
                       }
                     }}
+                    disabled={loadingObjectives || isLoading} // *** Désactive le bouton pendant le chargement
                   >
                     Mettre à jour
                   </Button>
@@ -656,6 +696,7 @@ function CollabFo() {
                         }
                       }
                     }}
+                    disabled={loadingObjectives || isLoading} // *** Désactive le bouton pendant le chargement
                   >
                     Valider
                   </Button>
@@ -670,6 +711,7 @@ function CollabFo() {
                     }
                   }}
                   endIcon={<KeyboardArrowRight />}
+                  disabled={loadingObjectives || isLoading} // *** Désactive le bouton pendant le chargement
                 >
                   Suivant
                 </Button>
@@ -689,9 +731,7 @@ function CollabFo() {
                 <Button onClick={handleCloseSignatureModal}>Annuler</Button>
                 <Button
                   onClick={() => {
-                    // Une fois qu'on a choisi la signature, on ferme la modal
                     handleCloseSignatureModal();
-                    // Et on ré-appelle la fonction de validation ou mise à jour selon le cas
                     if (userObjectives && userObjectives.length > 0) {
                       updateUserObjectives();
                     } else {
@@ -709,7 +749,7 @@ function CollabFo() {
               <DialogTitle>Signature manquante</DialogTitle>
               <DialogContent>
                 <Typography variant="body1">
-                  Vous n’avez pas encore de signature enregistrée. Veuillez{' '}
+                  Vous n'avez pas encore de signature enregistrée. Veuillez{' '}
                   <Typography
                     component="span"
                     onClick={() => navigate('/collab/profile')}
@@ -731,11 +771,10 @@ function CollabFo() {
                 </Button>
               </DialogActions>
             </Dialog>
-            
           </Box>
         )}
 
-       {/* Période Mi-Parcours */}
+        {/* Période Mi-Parcours */}
         {currentPeriod === 'Mi-Parcours' && (
           <CollabMp />
         )}

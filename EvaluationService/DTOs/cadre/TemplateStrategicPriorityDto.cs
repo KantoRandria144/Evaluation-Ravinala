@@ -5,6 +5,7 @@ namespace EvaluationService.DTOs
         public int TemplatePriorityId { get; set; }
         public string Name { get; set; }
         public int MaxObjectives { get; set; }
+        public decimal? Ponderation { get; set; }
         public List<ObjectiveDto>? Objectives { get; set; }
     }
 }

@@ -13,26 +13,32 @@ import {
   CardContent,
   Grid,
   Paper,
-  Dialog, // ***
-  DialogTitle, // ***
-  DialogContent, // ***
-  DialogActions, // ****
-  Alert
-} from '@mui/material'; // Assurez-vous que ces imports sont corrects
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  CircularProgress,
+  Backdrop,
+  Avatar,
+  Stack,
+  Container,
+  Tooltip,
+  IconButton
+} from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
-import { IconTargetArrow } from '@tabler/icons-react';
-import { useNavigate } from 'react-router-dom';
+import { IconTargetArrow, IconUser } from '@tabler/icons-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import ManagerMp from './ManagerMp';
 import ManagerFi from './ManagerFi';
+import HelpIcon from '@mui/icons-material/Help';
 
 function ManagerFo() {
+  const { subordinateId, typeUser } = useParams();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
   const managerId = user.id;
-  //   const { subordinateId, typeUser } = useParams();
-  const subordinateId = '18219f8e-b781-46ff-9182-37c9da640c03';
-  const typeUser = 'Cadre';
 
   const [evalId, setEvalId] = useState(null);
   const [templateId, setTemplateId] = useState(null);
@@ -42,14 +48,25 @@ function ManagerFo() {
   const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingObjectives, setLoadingObjectives] = useState(false);
   const [signatureFile, setSignatureFile] = useState(null);
   const [openSignatureModal, setOpenSignatureModal] = useState(false);
   const [openNoSignatureModal, setOpenNoSignatureModal] = useState(false);
-
+  const [openSignatureRecommendationModal, setOpenSignatureRecommendationModal] = useState(false);
+  const [openHelpModal, setOpenHelpModal] = useState(false);
   const [noObjectivesFound, setNoObjectivesFound] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
+  const [collaboratorInfo, setCollaboratorInfo] = useState(null);
 
-  // *** Fonctions pour la modal de signature
+  // *** Fonctions pour les modals
+  const handleOpenHelpModal = () => {
+    setOpenHelpModal(true);
+  };
+
+  const handleCloseHelpModal = () => {
+    setOpenHelpModal(false);
+  };
+
   const handleOpenSignatureModal = () => {
     setOpenSignatureModal(true);
   };
@@ -64,13 +81,24 @@ function ManagerFo() {
     }
   };
 
-  // Fetch fonctions...
+  // *** Vérifier si l'utilisateur a une signature
+  const checkUserSignature = async (userId) => {
+    try {
+      const response = await authInstance.get(`/Signature/get-user-signature/${userId}`);
+      return !!response.data.signature;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // *** Fetch fonctions...
   const fetchCadreTemplateId = async () => {
     try {
       const response = await formulaireInstance.get('/Template/CadreTemplate');
       if (response.data?.templateId) setTemplateId(response.data.templateId);
     } catch (error) {
       console.error('Erreur lors de la récupération du Template ID:', error);
+      setIsLoading(false);
     }
   };
 
@@ -84,6 +112,7 @@ function ManagerFo() {
       setEvalId(evaluationId);
     } catch (error) {
       console.error('Erreur lors de la vérification des évaluations:', error);
+      setIsLoading(false);
     }
   };
 
@@ -101,10 +130,36 @@ function ManagerFo() {
       }
     } catch (error) {
       console.error('Erreur lors de la récupération du Template:', error);
+      setIsLoading(false);
+    }
+  };
+
+  // *** Fonction pour récupérer les informations du collaborateur
+  const fetchCollaboratorInfo = async () => {
+    try {
+      // Adaptez cette URL à votre endpoint réel
+      const response = await formulaireInstance.get(`/User/${subordinateId}`);
+      if (response.data) {
+        setCollaboratorInfo({
+          nom: response.data.nom || 'Nom non disponible',
+          matricule: response.data.matricule || 'Matricule non disponible',
+          poste: response.data.poste || 'Poste non disponible',
+          photo: response.data.photo
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des informations du collaborateur:', error);
+      setCollaboratorInfo({
+        nom: 'Nom non disponible',
+        matricule: 'Matricule non disponible',
+        poste: 'Poste non disponible',
+        photo: null
+      });
     }
   };
 
   const fetchUserObjectives = async (evalId, userId) => {
+    setLoadingObjectives(true);
     try {
       const response = await formulaireInstance.get('/Evaluation/userObjectif', {
         params: {
@@ -116,6 +171,8 @@ function ManagerFo() {
     } catch (error) {
       console.error("Erreur lors de la récupération des objectifs de l'utilisateur :", error);
       return null;
+    } finally {
+      setLoadingObjectives(false);
     }
   };
 
@@ -218,7 +275,7 @@ function ManagerFo() {
       if (response.data && response.data.historyCFos && response.data.historyCFos.length > 0) {
         const validatedEntry = response.data.historyCFos.find((entry) => entry.validatedBy);
         if (validatedEntry) {
-          setIsValidated(true); // Marquer comme validé
+          setIsValidated(true);
           console.log('Validation existante :', validatedEntry);
         }
       }
@@ -229,14 +286,68 @@ function ManagerFo() {
   };
 
   useEffect(() => {
-    fetchCadreTemplateId();
-    checkOngoingEvaluation();
-    checkIfValidated(); // Vérifie si la validation a déjà été effectuée
+    const initializeData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchCadreTemplateId(),
+          checkOngoingEvaluation(),
+          checkIfValidated(),
+          fetchCollaboratorInfo()
+        ]);
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation des données:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeData();
   }, []);
 
   useEffect(() => {
-    fetchTemplate();
+    if (templateId) {
+      fetchTemplate();
+    }
   }, [templateId]);
+
+  useEffect(() => {
+    const recommendAddingSignature = async () => {
+      try {
+        const hasSignature = await checkUserSignature(managerId);
+        if (!hasSignature) {
+          setOpenSignatureRecommendationModal(true);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la vérification de la signature :', error);
+      }
+    };
+
+    recommendAddingSignature();
+  }, [managerId]);
+
+  const handleContinueWithoutSignature = () => {
+    setOpenSignatureRecommendationModal(false);
+  };
+
+  // *** Fonction pour rendre le loader
+  const renderLoader = () => (
+    <Backdrop
+      sx={{
+        color: '#fff',
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2
+      }}
+      open={isLoading || loadingObjectives}
+    >
+      <CircularProgress color="inherit" />
+      <Typography variant="h6">
+        {isLoading ? 'Chargement des données...' : 'Récupération des objectifs du collaborateur...'}
+      </Typography>
+    </Backdrop>
+  );
 
   const validateStep = () => {
     const currentPriority = template.templateStrategicPriorities[activeStep];
@@ -306,65 +417,82 @@ function ManagerFo() {
         return;
       }
 
-      // Vérifier si un fichier de signature est sélectionné
-      if (!signatureFile) {
-        alert('Veuillez fournir un fichier de signature avant de valider vos objectifs.');
-        handleOpenSignatureModal();
-        return;
-      }
-
-      // Lire le fichier en Base64
-      const fileReader = new FileReader();
-      fileReader.onloadend = async () => {
-        const base64String = fileReader.result;
-        const imageBase64 = base64String.split(',')[1]; // Extraire uniquement la chaîne Base64
-
-        try {
-          // Étape 1 : Comparer et valider la signature
-          const compareResponse = await authInstance.post(
-            `/Signature/compare-user-signature/${managerId}`,
-            { imageBase64 },
-            { headers: { 'Content-Type': 'application/json' } }
-          );
-
-          if (!compareResponse.data.isMatch) {
-            alert('Votre signature ne correspond pas à celle enregistrée. Veuillez réessayer.');
-            handleOpenSignatureModal();
-            return;
-          }
-
-          // Étape 2 : Valider les objectifs
-          const response = await formulaireInstance.post('/Evaluation/validateUserObjectivesHistory', objectivesData, {
-            params: {
-              validatorUserId: managerId,
-              userId: subordinateId,
-              type: typeUser
-            }
-          });
-
-          alert(response.data.message || 'Objectifs validés avec succès !');
-          window.location.reload();
-        } catch (error) {
-          if (error.response?.data?.message) {
-            // Si le backend retourne un message spécifique, on l'affiche
-            alert(error.response.data.message);
-          } else {
-            // Message générique pour d'autres erreurs
-            alert('Une erreur est survenue lors de la validation.');
-          }
-          console.error('Erreur lors de la validation des objectifs :', error);
+      // Si un fichier de signature est fourni, on vérifie la signature
+      if (signatureFile) {
+        const hasSignature = await checkUserSignature(managerId);
+        if (!hasSignature) {
+          setOpenNoSignatureModal(true);
+          return;
         }
-      };
 
-      fileReader.onerror = () => {
-        alert('Impossible de lire le fichier de signature. Veuillez réessayer.');
-      };
+        // Lire le fichier en Base64
+        const fileReader = new FileReader();
+        fileReader.onloadend = async () => {
+          const base64String = fileReader.result;
+          const imageBase64 = base64String.split(',')[1];
 
-      fileReader.readAsDataURL(signatureFile);
+          try {
+            // Comparer et valider la signature
+            const compareResponse = await authInstance.post(
+              `/Signature/compare-user-signature/${managerId}`,
+              { imageBase64 },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
+
+            if (!compareResponse.data.isMatch) {
+              alert('Votre signature ne correspond pas à celle enregistrée. Veuillez réessayer.');
+              handleOpenSignatureModal();
+              return;
+            }
+
+            // Valider les objectifs
+            await submitValidation(objectivesData);
+          } catch (error) {
+            handleValidationError(error);
+          }
+        };
+
+        fileReader.onerror = () => {
+          alert('Impossible de lire le fichier de signature. Veuillez réessayer.');
+        };
+
+        fileReader.readAsDataURL(signatureFile);
+      } else {
+        // Validation sans signature
+        await submitValidation(objectivesData);
+      }
     } catch (error) {
       console.error('Erreur lors de la validation des objectifs :', error);
       alert('Une erreur imprévue est survenue.');
     }
+  };
+
+  // Fonction helper pour soumettre la validation
+  const submitValidation = async (objectivesData) => {
+    try {
+      const response = await formulaireInstance.post('/Evaluation/validateUserObjectivesHistory', objectivesData, {
+        params: {
+          validatorUserId: managerId,
+          userId: subordinateId,
+          type: typeUser
+        }
+      });
+
+      alert(response.data.message || 'Objectifs validés avec succès !');
+      window.location.reload();
+    } catch (error) {
+      handleValidationError(error);
+    }
+  };
+
+  // Fonction helper pour gérer les erreurs de validation
+  const handleValidationError = (error) => {
+    if (error.response?.data?.message) {
+      alert(error.response.data.message);
+    } else {
+      alert('Une erreur est survenue lors de la validation.');
+    }
+    console.error('Erreur lors de la validation des objectifs :', error);
   };
 
   const handleNext = () => {
@@ -377,19 +505,135 @@ function ManagerFo() {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
+  if (!hasOngoingEvaluation) {
+    return (
+      <Container
+        maxWidth="sm"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '70vh'
+        }}
+      >
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }}>
+          <Card
+            sx={{
+              boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.12)',
+              borderRadius: '16px',
+              overflow: 'hidden'
+            }}
+          >
+            <CardContent
+              sx={{
+                padding: 4,
+                textAlign: 'center',
+                backgroundColor: 'background.paper',
+                color: 'text.primary'
+              }}
+            >
+              <Box
+                sx={{
+                  marginBottom: 3,
+                  padding: 2,
+                  borderRadius: '12px',
+                  backgroundColor: 'primary.lighter',
+                  border: '1px solid',
+                  borderColor: 'primary.main'
+                }}
+              >
+                <Typography variant="h4" fontWeight="bold" color="primary.main">
+                  Aucune évaluation en cours
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ marginTop: 1 }}>
+                  Vous serez informé dès le commencement d'une nouvelle évaluation.
+                </Typography>
+              </Box>
+
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                onClick={() => navigate('/dashboard/default')}
+                sx={{
+                  padding: '10px 32px',
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.2)'
+                  }
+                }}
+              >
+                Retour à l'accueil
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </Container>
+    );
+  }
+
   return (
     <>
+      {renderLoader()}
+      
       <Paper>
         <MainCard>
           <Grid container alignItems="center" justifyContent="space-between">
             <Grid item>
               <Typography variant="subtitle2">Évaluation</Typography>
-              <Typography variant="h3">
-                Période actuelle: <span style={{ color: '#3949AB' }}>{currentPeriod}</span>
-              </Typography>
+              {/* *** Section compacte avec informations du collaborateur */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
+                <Box>
+                  <Typography variant="h4" sx={{ fontSize: '1.8rem', fontWeight: 600, mb: 0.5, lineHeight: 1.2 }}>
+                    {currentPeriod} - 2025
+                  </Typography>
+                  
+                  {/* *** Affichage compact des informations du collaborateur */}
+                  <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.5 }}>
+                    <Avatar 
+                      sx={{ 
+                        width: 36, 
+                        height: 36, 
+                        bgcolor: '#3949AB',
+                        fontSize: '0.9rem'
+                      }}
+                      src={collaboratorInfo?.photo}
+                    >
+                      {!collaboratorInfo?.photo && <IconUser size={20} />}
+                    </Avatar>
+                    <Box sx={{ lineHeight: 1.1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.85rem' }}>
+                        <strong>Nom:</strong> {collaboratorInfo?.nom || 'Chargement...'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                        <strong>Matricule:</strong> {collaboratorInfo?.matricule || 'N/A'} • 
+                        <strong> Poste:</strong> {collaboratorInfo?.poste || 'N/A'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              </Box>
+            </Grid>
+            <Grid item>
+              <Tooltip title="Besoin d'aide ?" arrow>
+                <IconButton 
+                  aria-label="aide" 
+                  onClick={handleOpenHelpModal}
+                  size="small"
+                  sx={{ mt: -1 }}
+                >
+                  <HelpIcon sx={{ fontSize: 20, color: 'text.primary' }} />
+                </IconButton>
+              </Tooltip>
             </Grid>
           </Grid>
         </MainCard>
+
         {currentPeriod === 'Fixation Objectif' && (
           <Box p={3}>
             {noObjectivesFound ? (
@@ -465,6 +709,7 @@ function ManagerFo() {
                                               e.target.value
                                             )
                                           }
+                                          disabled={loadingObjectives}
                                         />
                                       </Grid>
                                       <Grid item xs={12}>
@@ -489,6 +734,7 @@ function ManagerFo() {
                                               value
                                             );
                                           }}
+                                          disabled={loadingObjectives}
                                         />
                                       </Grid>
 
@@ -512,6 +758,7 @@ function ManagerFo() {
                                               e.target.value
                                             )
                                           }
+                                          disabled={loadingObjectives}
                                         />
                                       </Grid>
 
@@ -537,6 +784,7 @@ function ManagerFo() {
                                                     colIndex
                                                   )
                                                 }
+                                                disabled={loadingObjectives}
                                               />
                                             </Box>
                                           </Grid>
@@ -555,7 +803,7 @@ function ManagerFo() {
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
                   <Button
-                    disabled={activeStep === 0}
+                    disabled={activeStep === 0 || loadingObjectives}
                     onClick={handleBack}
                     variant="contained"
                     color="primary"
@@ -568,15 +816,10 @@ function ManagerFo() {
                     <Button
                       variant="contained"
                       color="success"
-                      disabled={isValidated}
+                      disabled={isValidated || loadingObjectives}
                       onClick={() => {
                         if (validateStep()) {
-                          // Vérifier si la signature est fournie
-                          if (!signatureFile) {
-                            handleOpenSignatureModal(); // Ouvrir la modal pour la signature
-                          } else {
-                            validateHistoryUserObjectives(); // Appeler la fonction de validation
-                          }
+                          validateHistoryUserObjectives();
                         }
                       }}
                     >
@@ -588,10 +831,11 @@ function ManagerFo() {
                       color="primary"
                       onClick={() => {
                         if (validateStep()) {
-                          handleNext(); // Passer à l'étape suivante
+                          handleNext();
                         }
                       }}
                       endIcon={<KeyboardArrowRight />}
+                      disabled={loadingObjectives}
                     >
                       Suivant
                     </Button>
@@ -611,7 +855,6 @@ function ManagerFo() {
                     <Button onClick={handleCloseSignatureModal}>Annuler</Button>
                     <Button
                       onClick={() => {
-                        // Une fois qu'on a choisi la signature, on ferme la modal
                         handleCloseSignatureModal();
                         validateHistoryUserObjectives();
                       }}
@@ -627,7 +870,7 @@ function ManagerFo() {
                   <DialogTitle>Signature manquante</DialogTitle>
                   <DialogContent>
                     <Typography variant="body1">
-                      Vous n’avez pas encore de signature enregistrée. Veuillez{' '}
+                      Vous n'avez pas encore de signature enregistrée. Veuillez{' '}
                       <Typography
                         component="span"
                         onClick={() => navigate('/collab/profile')}
@@ -649,20 +892,135 @@ function ManagerFo() {
                     </Button>
                   </DialogActions>
                 </Dialog>
+                
+                <Dialog
+                  open={openSignatureRecommendationModal}
+                  onClose={handleContinueWithoutSignature}
+                  aria-labelledby="signature-recommendation-title"
+                >
+                  <DialogTitle id="signature-recommendation-title">Signature Manquante</DialogTitle>
+                  <DialogContent>
+                    <Typography variant="body1" sx={{ mb: 2 }}>
+                      Nous vous recommandons d'ajouter une signature avant de commencer. Cela évitera de devoir tout retaper après validation.
+                    </Typography>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button variant="outlined" onClick={handleContinueWithoutSignature}>
+                      Continuer sans signature
+                    </Button>
+                    <Button variant="contained" color="primary" onClick={() => navigate('/collab/profile')} sx={{ ml: 2 }}>
+                      Ajouter une signature
+                    </Button>
+                  </DialogActions>
+                </Dialog>
               </>
             )}
           </Box>
         )}
 
+        <Dialog open={openHelpModal} onClose={handleCloseHelpModal} aria-labelledby="help-dialog-title">
+          <DialogTitle id="help-dialog-title">Aide</DialogTitle>
+          <DialogContent dividers>
+            {currentPeriod === 'Fixation Objectif' && (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Pendant cette période
+                </Typography>
+                <Typography variant="body1" gutterBottom>
+                  Vous devez valider les objectifs, les pondérations et les résultats attendus saisis par l'évalué. Vous pouvez également les modifier ou en ajouter de nouveaux si nécessaire.
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 3 }} gutterBottom>
+                  Suivez les étapes ci-dessous :
+                </Typography>
+                <Box component="ol" sx={{ pl: 3, mt: 2 }}>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Consultez les objectifs, les pondérations et les résultats attendus proposés par l'évalué.
+                  </Typography>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Si nécessaire, modifiez-les ou ajoutez-en de nouveaux.
+                  </Typography>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Cliquez sur <strong>"Suivant"</strong> pour examiner chaque élément un par un.
+                  </Typography>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Une fois toutes les étapes terminées, cliquez sur le bouton <strong>"Valider"</strong> pour finaliser le processus.
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ mt: 2 }} color="textSecondary">
+                  Note : Une fois validés, vous ne pourrez plus apporter de modifications avant la période d'évaluation de mi-parcours.
+                </Typography>
+              </>
+            )}
+
+            {currentPeriod === 'Mi-Parcours' && (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Pendant cette période
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 3 }} gutterBottom>
+                  Suivez les étapes :
+                </Typography>
+                <Box component="ol" sx={{ pl: 3, mt: 2 }}>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Remplissez les résultats pour chaque résultat attendu.
+                  </Typography>
+                  <Typography component="li" variant="body2" gutterBottom>
+                  Si nécessaire, modifiez les objectifs, les pondérations et les résultats attendus saisis lors de la période de fixation des objectifs.          
+                  </Typography>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Passez en revue chaque élément en cliquant sur <strong>"Suivant"</strong>.
+                  </Typography>
+                  <Typography component="li" variant="body2" gutterBottom>
+                    Une fois terminé, cliquez sur le bouton <strong>"Valider"</strong> pour finaliser.
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ mt: 3 }} gutterBottom>
+                  Note: Vous pouvez toujours modifier les champs remplis
+                  <span style={{ color: 'red' }}> tant que l'évalué ne l'a pas encore validé à son tour.</span>
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 2 }}>
+                  <strong>Important :</strong> Une fois que l'évalué a validé, le bouton de validation sera désactivé. Seuls les résultats
+                  pourront être modifiés lors de la période d'évaluation finale.
+                </Typography>
+              </>
+            )}
+
+            {currentPeriod === 'Évaluation Finale' && (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Pendant cette période
+                </Typography>
+                <Typography variant="body1" gutterBottom>
+                  Revoyez les résultats pour chaque résultat attendu que vous avez renseigné.
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 3 }} gutterBottom>
+                  Note: Vous pouvez toujours modifier uniquement les résultats
+                  <span style={{ color: 'red' }}> tant que l'évalué ne l'a pas encore validé à son tour.</span>
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 2 }}>
+                  <strong>Important :</strong> Une fois que l'évalué a validé, le bouton de validation sera désactivé.
+                </Typography>
+              </>
+            )}
+
+            {!['Fixation Objectif', 'Mi-Parcours', 'Évaluation Finale'].includes(currentPeriod) && (
+              <Typography variant="body1" gutterBottom>
+                Voici quelques informations pour vous aider à utiliser cette section :
+              </Typography>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseHelpModal} color="primary">
+              Fermer
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Période Mi-Parcours */}
-        {currentPeriod === 'Mi-Parcours' && (
-          <ManagerMp />
-        )}
+        {currentPeriod === 'Mi-Parcours' && <ManagerMp subordinateId={subordinateId} typeUser={typeUser} />}
 
         {/* Période Évaluation Finale */}
-        {currentPeriod === 'Évaluation Finale' && (
-          <ManagerFi />
-        )}
+        {currentPeriod === 'Évaluation Finale' && <ManagerFi subordinateId={subordinateId} typeUser={typeUser} />}
       </Paper>
     </>
   );

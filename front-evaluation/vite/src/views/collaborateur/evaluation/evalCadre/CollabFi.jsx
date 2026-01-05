@@ -1,22 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { formulaireInstance, authInstance } from '../../../../axiosConfig';
-import MainCard from 'ui-component/cards/MainCard';
+import { formulaireInstance } from '../../../../axiosConfig';
 import {
   Box,
   TextField,
   Typography,
-  Stepper,
-  Step,
-  StepLabel,
   Button,
   Card,
   CardContent,
   Grid,
-  Paper,
-  Dialog, // ***
-  DialogTitle, // ***
-  DialogContent, // ***
-  DialogActions, // ****
   Alert,
   Table,
   TableCell,
@@ -24,15 +15,15 @@ import {
   TableHead,
   TableRow,
   TableBody,
-  Divider
-} from '@mui/material'; // Assurez-vous que ces imports sont corrects
-import { motion, AnimatePresence } from 'framer-motion';
-import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
-import { IconTargetArrow } from '@tabler/icons-react';
-import { useNavigate } from 'react-router-dom';
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment
+} from '@mui/material';
+import { IconTargetArrow, IconEdit, IconCheck, IconX } from '@tabler/icons-react';
 
 function CollabFi() {
-  const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
   const userId = user.id;
   const typeUser = user.typeUser;
@@ -42,33 +33,15 @@ function CollabFi() {
   const [currentPeriod, setCurrentPeriod] = useState('');
   const [hasOngoingEvaluation, setHasOngoingEvaluation] = useState(false);
   const [template, setTemplate] = useState({ templateStrategicPriorities: [] });
-  const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [signatureFile, setSignatureFile] = useState(null);
-  const [openSignatureModal, setOpenSignatureModal] = useState(false);
-  const [openNoSignatureModal, setOpenNoSignatureModal] = useState(false);
-
   const [noObjectivesFound, setNoObjectivesFound] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
-  const [managerHasValidated, setManagerHasValidated] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedResults, setEditedResults] = useState({});
+  const [openConfirmModal, setOpenConfirmModal] = useState(false);
+  const [openValidationConfirmModal, setOpenValidationConfirmModal] = useState(false);
+  const [isManagerValidation, setIsManagerValidation] = useState(false);
 
-  // *** Fonctions pour la modal de signature
-  const handleOpenSignatureModal = () => {
-    setOpenSignatureModal(true);
-  };
-
-  const handleCloseSignatureModal = () => {
-    setOpenSignatureModal(false);
-  };
-
-  const handleSignatureFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSignatureFile(e.target.files[0]);
-    }
-  };
-
-  // Fetch fonctions...
   const fetchCadreTemplateId = async () => {
     try {
       const response = await formulaireInstance.get('/Template/CadreTemplate');
@@ -83,9 +56,17 @@ function CollabFi() {
       const response = await formulaireInstance.get('/Periode/enCours', {
         params: { type: 'Cadre' }
       });
-      setHasOngoingEvaluation(response.data.length > 0);
-      const evaluationId = response.data[0].evalId;
-      setEvalId(evaluationId);
+      const hasEvaluation = response.data.length > 0;
+      setHasOngoingEvaluation(hasEvaluation);
+      if (hasEvaluation) {
+        setEvalId(response.data[0].evalId);
+        const periodResponse = await formulaireInstance.get('/Periode/periodeActel', { 
+          params: { type: 'Cadre' } 
+        });
+        if (periodResponse.data?.length > 0) {
+          setCurrentPeriod(periodResponse.data[0].currentPeriod);
+        }
+      }
     } catch (error) {
       console.error('Erreur lors de la vérification des évaluations:', error);
     }
@@ -96,13 +77,7 @@ function CollabFi() {
 
     try {
       const response = await formulaireInstance.get(`/Template/${templateId}`);
-      console.log('Template:', response.data.template);
       setTemplate(response.data.template || { templateStrategicPriorities: [] });
-
-      const periodResponse = await formulaireInstance.get('/Periode/periodeActel', { params: { type: 'Cadre' } });
-      if (periodResponse.data?.length > 0) {
-        setCurrentPeriod(periodResponse.data[0].currentPeriod);
-      }
     } catch (error) {
       console.error('Erreur lors de la récupération du Template:', error);
     }
@@ -123,115 +98,209 @@ function CollabFi() {
     }
   };
 
+  const refreshUserObjectives = async () => {
+    if (evalId && userId) {
+      try {
+        const objectives = await fetchUserObjectives(evalId, userId);
+        if (objectives && objectives.length > 0) {
+          setUserObjectives(objectives);
+          
+          const initialEditedResults = {};
+          objectives.forEach(obj => {
+            if (obj.objectiveId) {
+              initialEditedResults[obj.objectiveId] = obj.result !== null && obj.result !== undefined ? obj.result.toString() : '';
+            }
+          });
+          setEditedResults(initialEditedResults);
+
+          setTemplate((prevTemplate) => {
+            const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
+              const priorityObjectives = objectives.filter((obj) => obj.templateStrategicPriority.name === priority.name);
+
+              return {
+                ...priority,
+                objectives: priorityObjectives.map((obj) => ({
+                  objectiveId: obj.objectiveId,
+                  description: obj.description || '',
+                  weighting: obj.weighting || '',
+                  resultIndicator: obj.resultIndicator || '',
+                  result: obj.result || '',
+                  dynamicColumns:
+                    obj.objectiveColumnValues?.map((col) => ({
+                      columnName: col.columnName,
+                      value: col.value || ''
+                    })) || []
+                }))
+              };
+            });
+
+            return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
+          });
+          setNoObjectivesFound(false);
+        } else {
+          setNoObjectivesFound(true);
+        }
+      } catch (error) {
+        console.error('Erreur lors du rafraîchissement des objectifs.', error);
+      }
+    }
+  };
+
+  const checkManagerValidationStatus = async () => {
+    try {
+      const response = await formulaireInstance.get('/Evaluation/getHistoryFinaleByUser', {
+        params: {
+          userId: userId,
+          type: typeUser
+        }
+      });
+
+      if (response.data && response.data.length > 0) {
+        const managerValidation = response.data.find((entry) => 
+          entry.validatedBy && entry.validatedBy !== userId
+        );
+        setIsManagerValidation(!!managerValidation);
+      } else {
+        setIsManagerValidation(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification de la validation manager :', error);
+      setIsManagerValidation(false);
+    }
+  };
+
   useEffect(() => {
     const loadUserObjectives = async () => {
       if (evalId && userId) {
-        try {
-          const objectives = await fetchUserObjectives(evalId, userId);
-          if (objectives && objectives.length > 0) {
-            setUserObjectives(objectives);
-            setTemplate((prevTemplate) => {
-              const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
-                const priorityObjectives = objectives.filter((obj) => obj.templateStrategicPriority.name === priority.name);
-
-                return {
-                  ...priority,
-                  objectives: priorityObjectives.map((obj) => ({
-                    objectiveId: obj.objectiveId,
-                    description: obj.description || '',
-                    weighting: obj.weighting || '',
-                    resultIndicator: obj.resultIndicator || '',
-                    result: obj.result || '',
-                    dynamicColumns:
-                      obj.objectiveColumnValues?.map((col) => ({
-                        columnName: col.columnName,
-                        value: col.value || ''
-                      })) || []
-                  }))
-                };
-              });
-
-              return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
-            });
-            setNoObjectivesFound(false);
-          } else {
-            console.log('Aucun objectif utilisateur trouvé.');
-            setNoObjectivesFound(true);
-          }
-        } catch (error) {
-          console.error('Erreur lors de la récupération des objectifs.', error);
-        }
+        await refreshUserObjectives();
       }
     };
 
     loadUserObjectives();
   }, [evalId, userId]);
 
-  const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
-    setTemplate((prevTemplate) => {
-      const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
-        if (priority.name !== priorityName) return priority;
-
-        const updatedObjectives = [...priority.objectives];
-
-        if (!updatedObjectives[objectiveIndex]) {
-          updatedObjectives[objectiveIndex] = {
-            description: '',
-            weighting: '',
-            resultIndicator: '',
-            result: '',
-            dynamicColumns: []
-          };
-        }
-
-        const objective = { ...updatedObjectives[objectiveIndex] };
-
-        if (columnIndex !== null) {
-          if (!Array.isArray(objective.dynamicColumns)) {
-            objective.dynamicColumns = [];
-          }
-          if (!objective.dynamicColumns[columnIndex]) {
-            objective.dynamicColumns[columnIndex] = {
-              columnName: '',
-              value: ''
-            };
-          }
-          objective.dynamicColumns[columnIndex] = {
-            ...objective.dynamicColumns[columnIndex],
-            value
-          };
-        } else {
-          objective[field] = value;
-        }
-
-        updatedObjectives[objectiveIndex] = objective;
-        return { ...priority, objectives: updatedObjectives };
-      });
-
-      return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
-    });
+  const handleResultChange = (objectiveId, value) => {
+    setEditedResults(prev => ({
+      ...prev,
+      [objectiveId]: value
+    }));
   };
 
-  const checkValidationStatus = async () => {
-    if (!evalId) {
-      setManagerHasValidated(false);
+  const handleStartEditing = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEditing = () => {
+    const originalResults = {};
+    userObjectives.forEach(obj => {
+      if (obj.objectiveId) {
+        originalResults[obj.objectiveId] = obj.result !== null && obj.result !== undefined ? obj.result.toString() : '';
+      }
+    });
+    setEditedResults(originalResults);
+    setIsEditing(false);
+  };
+
+  const handleSaveResults = async () => {
+    try {
+      const requestData = {
+        userId: userId,
+        type: "Cadre",
+        objectives: userObjectives.map(obj => {
+          const resultValue = editedResults[obj.objectiveId];
+          let parsedResult = 0;
+          
+          if (resultValue !== '' && resultValue !== null && resultValue !== undefined) {
+            const normalizedValue = resultValue.toString().replace(',', '.');
+            parsedResult = parseFloat(normalizedValue) || 0;
+          }
+          
+          return {
+            objectiveId: obj.objectiveId,
+            description: obj.description || '',
+            weighting: parseFloat(obj.weighting) || 0,
+            resultIndicator: obj.resultIndicator || '',
+            result: parsedResult,
+            ColumnValues: obj.objectiveColumnValues?.map(col => ({
+              columnName: col.columnName,
+              value: col.value || ''
+            })) || [],
+            DynamicColumns: obj.objectiveColumnValues?.map(col => ({
+              columnName: col.columnName,
+              value: col.value || ''
+            })) || []
+          };
+        }),
+        indicators: []
+      };
+
+      console.log('Envoi de la requête updateResults:', JSON.stringify(requestData, null, 2));
+
+      const response = await formulaireInstance.post('/Evaluation/updateResults', requestData);
+
+      if (response.status === 200) {
+        const message = response.data?.Message || 'Résultats mis à jour avec succès !';
+        alert(message);
+        
+        await refreshUserObjectives();
+        
+        setIsEditing(false);
+        setOpenConfirmModal(false);
+      } else {
+        alert('Réponse inattendue du serveur.');
+      }
+      
+    } catch (error) {
+      console.error('Erreur détaillée:', error);
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        
+        if (status === 400) {
+          if (data.errors) {
+            const validationErrors = Object.entries(data.errors)
+              .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+              .join('\n');
+            alert(`Erreurs de validation:\n${validationErrors}`);
+          } else {
+            alert(data.title || `Erreur ${status}: Requête invalide`);
+          }
+        } else if (status === 404) {
+          alert('Évaluation non trouvée. Vérifiez que l\'évaluation est en cours.');
+        } else if (status === 500) {
+          alert('Erreur serveur. Contactez l\'administrateur.');
+        } else {
+          alert(`Erreur ${status}: ${data?.message || 'Erreur inconnue'}`);
+        }
+      } else if (error.request) {
+        alert('Aucune réponse du serveur. Vérifiez votre connexion réseau.');
+      } else {
+        alert('Erreur de configuration de la requête.');
+      }
+    }
+  };
+
+  const handleConfirmSave = () => {
+    const invalidEntries = Object.entries(editedResults).filter(([id, value]) => {
+      if (value === '' || value === null || value === undefined) {
+        return false;
+      }
+      
+      const normalizedValue = value.toString().replace(',', '.');
+      const numValue = parseFloat(normalizedValue);
+      if (isNaN(numValue)) {
+        return true;
+      }
+      
+      return numValue < 0 || numValue > 100;
+    });
+
+    if (invalidEntries.length > 0) {
+      alert('Veuillez entrer des valeurs numériques valides entre 0 et 100 (ou laisser vide).');
       return;
     }
 
-    try {
-      const response = await formulaireInstance.get('/Notification/validationStatus', {
-        params: {
-          userId: userId,
-          evalId: evalId
-        }
-      });
-
-      const { isValidated, validatedAt, validatedBy } = response.data;
-      setManagerHasValidated(isValidated);
-    } catch (error) {
-      console.error('Erreur lors de la récupération de l\'état de validation :', error);
-      setManagerHasValidated(false);
-    }
+    setOpenConfirmModal(true);
   };
 
   const checkIfValidated = async () => {
@@ -243,21 +312,11 @@ function CollabFi() {
         }
       });
 
-      // Vérifier si la réponse contient des données
       if (response.data && response.data.length > 0) {
-        // Rechercher une entrée validée
-        const hasValidatedEntry = response.data.some((entry) => entry.validatedBy);
-
-        if (hasValidatedEntry) {
-          setIsValidated(true); // Marquer comme validé
-          console.log('Validation existante détectée');
-        } else {
-          setIsValidated(false); // Pas de validation
-          console.log('Aucune validation trouvée');
-        }
+        const hasValidatedEntry = response.data.some((entry) => entry.validatedBy === userId);
+        setIsValidated(hasValidatedEntry);
       } else {
-        setIsValidated(false); // Pas de données dans la réponse
-        console.log('Aucune donnée trouvée');
+        setIsValidated(false);
       }
     } catch (error) {
       console.error('Erreur lors de la vérification de la validation :', error);
@@ -266,58 +325,53 @@ function CollabFi() {
   };
 
   useEffect(() => {
-    fetchCadreTemplateId();
-    checkOngoingEvaluation();
-    checkIfValidated()
+    const initData = async () => {
+      await fetchCadreTemplateId();
+      await checkOngoingEvaluation();
+      await checkIfValidated();
+      await checkManagerValidationStatus();
+    };
+    initData();
   }, []);
-
-  useEffect(() => {
-    checkValidationStatus(); 
-  }, [userId, evalId]);
-
 
   useEffect(() => {
     fetchTemplate();
   }, [templateId]);
 
-  const validateStep = () => {
-    const currentPriority = template.templateStrategicPriorities[activeStep];
-    if (!currentPriority) return false;
-
-    let isAnyObjectiveFilled = false;
-
-    for (const [index, objective] of currentPriority.objectives.entries()) {
-      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator;
-
-      const hasDynamicColumns = Array.isArray(objective.dynamicColumns);
-      const isAnyDynamicColumnFilled = hasDynamicColumns ? objective.dynamicColumns.some((column) => column.value) : false;
-
-      if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result)) {
-        alert(`Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`);
-        return false;
-      }
-
-      if (isObjectivePartiallyFilled) {
-        isAnyObjectiveFilled = true;
-
-        if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result) {
-          alert(`Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`);
-          return false;
-        }
-      }
+  useEffect(() => {
+    // Vérifier si la période actuelle correspond à une période finale
+    const isFinalPeriod = currentPeriod && 
+      (currentPeriod === 'Final' || 
+       currentPeriod === 'Évaluation Finale' || 
+       currentPeriod.toLowerCase().includes('final'));
+    
+    if (currentPeriod && !isFinalPeriod) {
+      console.warn(`ATTENTION : La période actuelle est "${currentPeriod}" mais ce composant est conçu pour la période finale.`);
     }
-
-    if (!isAnyObjectiveFilled) {
-      alert(`Veuillez remplir au moins un objectif pour "${currentPriority.name}".`);
-      return false;
-    }
-
-    return true;
-  };
+  }, [currentPeriod]);
 
   const validateFinalObjectifHistory = async () => {
     if (isValidated) {
       alert('Vous avez déjà validé les objectifs.');
+      return;
+    }
+
+    const missingResults = userObjectives.filter(obj => 
+      !obj.result && obj.result !== 0
+    );
+
+    if (missingResults.length > 0) {
+      alert('Veuillez d\'abord ajouter vos résultats avant de valider.');
+      return;
+    }
+
+    const invalidResults = userObjectives.filter(obj => {
+      const result = parseFloat(obj.result);
+      return isNaN(result) || result < 0 || result > 100;
+    });
+
+    if (invalidResults.length > 0) {
+      alert('Certains résultats ne sont pas dans la plage valide (0-100). Veuillez corriger avant de valider.');
       return;
     }
 
@@ -338,15 +392,11 @@ function CollabFi() {
         }))
       );
 
-      console.log(objectivesData);
-
-      // Vérifier si au moins un objectif est valide
-      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
-        alert('Veuillez remplir au moins un objectif avec tous les champs requis.');
+      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator && (obj.result || obj.result === 0))) {
+        alert('Veuillez remplir au moins un objectif avec tous les champs requis (y compris les résultats).');
         return;
       }
 
-      // Valider les objectifs directement sans signature
       const response = await formulaireInstance.post('/Evaluation/validateFinaleHistory', objectivesData, {
         params: {
           userId: userId,
@@ -371,196 +421,402 @@ function CollabFi() {
       (!objective.description || objective.description === 'Non défini') &&
       (!objective.weighting || objective.weighting === 0) &&
       (!objective.resultIndicator || objective.resultIndicator === 'Non défini') &&
-      (!objective.result || objective.result === 0) &&
+      (!objective.result && objective.result !== 0) &&
       (!objective.dynamicColumns || objective.dynamicColumns.every((column) => !column.value || column.value === 'Non défini'))
     );
   };
 
+  const formatInputValue = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    
+    const strValue = value.toString();
+    const normalized = strValue.replace(',', '.');
+    
+    if (/^-?\d*\.?\d*$/.test(normalized)) {
+      const parts = normalized.split('.');
+      if (parts[1] && parts[1].length > 2) {
+        return parts[0] + '.' + parts[1].substring(0, 2);
+      }
+      return normalized;
+    }
+    return value;
+  };
+
+  const renderResultCell = (objective) => {
+    if (isEditing) {
+      return (
+        <TextField
+          type="text"
+          inputProps={{ 
+            style: { 
+              textAlign: 'center',
+              padding: '4px'
+            }
+          }}
+          value={formatInputValue(editedResults[objective.objectiveId] || '')}
+          onChange={(e) => {
+            let value = e.target.value;
+            if (value === '' || /^[\d,.]*$/.test(value)) {
+              handleResultChange(objective.objectiveId, value);
+            }
+          }}
+          onBlur={(e) => {
+            let value = e.target.value.trim();
+            if (value === '') {
+              handleResultChange(objective.objectiveId, '');
+              return;
+            }
+            
+            value = value.replace(',', '.');
+            const numValue = parseFloat(value);
+            if (!isNaN(numValue)) {
+              const clampedValue = Math.min(100, Math.max(0, numValue));
+              const formattedValue = clampedValue.toFixed(2);
+              handleResultChange(objective.objectiveId, formattedValue);
+            }
+          }}
+          variant="outlined"
+          size="small"
+          sx={{
+            width: '80px',
+            '& .MuiOutlinedInput-root': {
+              height: '32px'
+            }
+          }}
+          InputProps={{
+            endAdornment: <InputAdornment position="end">%</InputAdornment>,
+          }}
+          placeholder="0-100"
+        />
+      );
+    } else {
+      const resultValue = objective.result;
+      const hasResult = resultValue !== undefined && resultValue !== null && resultValue !== '';
+      const numericResult = parseFloat(resultValue);
+      const isHigh = !isNaN(numericResult) && numericResult >= 50;
+      
+      return (
+        <Box
+          sx={{
+            backgroundColor: hasResult ? (isHigh ? '#E8EAF6' : 'rgba(244, 67, 54, 0.1)') : '#f5f5f5',
+            color: hasResult ? (isHigh ? 'primary.main' : 'error.main') : 'text.secondary',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            textAlign: 'center',
+            display: 'inline-block',
+            minWidth: '60px',
+            border: hasResult ? 'none' : '1px dashed #ccc'
+          }}
+        >
+          <Typography variant="body2">
+            {hasResult ? `${resultValue} %` : 'Non saisi'}
+          </Typography>
+        </Box>
+      );
+    }
+  };
+
+  // Vérifier si la période actuelle est une période finale
+  const isFinalPeriod = currentPeriod && 
+    (currentPeriod === 'Final' || 
+     currentPeriod === 'Évaluation Finale' || 
+     currentPeriod.toLowerCase().includes('final'));
+
   return (
     <>
-      <Box p={3}>
-        {noObjectivesFound ? (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            Vous n'avez pas encore validé vos objectifs
+      <Box p={2}>
+        {currentPeriod && !isFinalPeriod && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <strong>Attention :</strong> La période actuelle est <strong>{currentPeriod}</strong> mais ce composant est conçu pour la période finale.
           </Alert>
-        ) : !managerHasValidated ? (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            votre manager n'a pas encore validé vos résultats
+        )}
+
+        {noObjectivesFound ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Vous n'avez pas encore validé vos objectifs
           </Alert>
         ) : (
           <>
+            {!isValidated && !isManagerValidation && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 1 }}>
+                {!isEditing ? (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<IconEdit />}
+                    onClick={handleStartEditing}
+                    size="small"
+                  >
+                    Modifier mes résultats
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<IconX />}
+                      onClick={handleCancelEditing}
+                      size="small"
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      startIcon={<IconCheck />}
+                      onClick={handleConfirmSave}
+                      size="small"
+                    >
+                      Enregistrer
+                    </Button>
+                  </>
+                )}
+              </Box>
+            )}
+
+            {isManagerValidation && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Votre manager a déjà validé vos résultats. Vous pouvez seulement les visualiser.
+              </Alert>
+            )}
+
             {template.templateStrategicPriorities.map((priority, priorityIndex) => (
-              <Card key={priorityIndex} sx={{ mb: 4 }}>
-                <CardContent>
+              <Card key={priorityIndex} sx={{ mb: 2, boxShadow: 1 }}>
+                <CardContent sx={{ p: 1 }}>
                   <Typography
-                    variant="h5"
+                    variant="h6"
                     gutterBottom
                     sx={{
-                      marginBottom: '20px',
+                      mb: 1,
                       backgroundColor: '#e8eaf6',
-                      padding: 3,
+                      padding: 1,
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      borderRadius: 0.5
                     }}
                   >
                     {priority.name}
-                    <IconTargetArrow style={{ color: '#3f51b5' }} />
+                    <IconTargetArrow style={{ color: '#3f51b5', fontSize: '20px' }} />
                   </Typography>
 
-                  <Grid container spacing={3}>
-                    <Grid item xs={12}>
-                      <TableContainer component="div">
-                        <Table aria-label={`tableau pour ${priority.name}`} sx={{ border: '1px solid #e0e0e0', borderRadius: '4px' }}>
-                          <TableHead>
-                            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableContainer sx={{ maxHeight: 400, overflow: 'auto' }}>
+                    <Table size="small" sx={{ border: '1px solid #e0e0e0' }}>
+                      <TableHead>
+                        <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '25%'
+                            }}
+                          >
+                            Objectif
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '10%'
+                            }}
+                          >
+                            Pondération
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '25%'
+                            }}
+                          >
+                            Indicateur de Résultat
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '15%'
+                            }}
+                          >
+                            Résultat
+                            {isEditing && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                (0-100)
+                              </Typography>
+                            )}
+                          </TableCell>
+                          {priority.objectives[0]?.dynamicColumns?.map((column, colIndex) => (
+                            <TableCell
+                              key={colIndex}
+                              sx={{
+                                fontWeight: 'bold',
+                                fontSize: '0.75rem',
+                                py: 0.5,
+                                width: '10%'
+                              }}
+                            >
+                              {column.columnName || `Colonne ${colIndex + 1}`}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+
+                      <TableBody>
+                        {priority.objectives
+                          .filter((objective) => !isObjectiveUndefined(objective))
+                          .map((objective, objIndex) => (
+                            <TableRow key={objIndex} hover>
                               <TableCell
                                 sx={{
-                                  fontWeight: 'bold',
-                                  color: '#333333',
-                                  textAlign: 'left',
                                   borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  py: 0.5,
                                   width: '25%'
                                 }}
                               >
-                                Objectif
+                                <Typography variant="body2">
+                                  {objective.description || 'Non défini'}
+                                </Typography>
                               </TableCell>
                               <TableCell
                                 sx={{
-                                  fontWeight: 'bold',
-                                  color: '#333333',
-                                  textAlign: 'left',
                                   borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  py: 0.5,
                                   width: '10%'
                                 }}
                               >
-                                Pondération
+                                <Box
+                                  sx={{
+                                    color: objective.weighting >= 50 ? 'primary.main' : 'error.main',
+                                    padding: '2px 8px',
+                                    borderRadius: '4px',
+                                    textAlign: 'center',
+                                    display: 'inline-block'
+                                  }}
+                                >
+                                  <Typography variant="body2">
+                                    {(objective.weighting !== undefined && objective.weighting !== null && objective.weighting !== '') 
+                                      ? `${objective.weighting} %` 
+                                      : '0 %'}
+                                  </Typography>
+                                </Box>
                               </TableCell>
                               <TableCell
                                 sx={{
-                                  fontWeight: 'bold',
-                                  color: '#333333',
-                                  textAlign: 'left',
                                   borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  py: 0.5,
                                   width: '25%'
                                 }}
                               >
-                                Indicateur de Résultat
+                                <Typography variant="body2">
+                                  {objective.resultIndicator ? objective.resultIndicator : 'Non défini'}
+                                </Typography>
                               </TableCell>
                               <TableCell
                                 sx={{
-                                  fontWeight: 'bold',
-                                  color: '#333333',
-                                  textAlign: 'left',
                                   borderRight: '1px solid rgba(224, 224, 224, 1)',
-                                  width: '10%'
+                                  py: 0.5,
+                                  width: '15%'
                                 }}
                               >
-                                Résultat
+                                {renderResultCell(objective)}
                               </TableCell>
-                              {priority.objectives[0]?.dynamicColumns?.map((column, colIndex) => (
+                              {objective.dynamicColumns?.map((column, colIndex) => (
                                 <TableCell
                                   key={colIndex}
                                   sx={{
-                                    fontWeight: 'bold',
-                                    color: '#333333',
-                                    textAlign: 'left',
+                                    py: 0.5,
                                     width: '10%'
                                   }}
                                 >
-                                  {column.columnName || `Colonne ${colIndex + 1}`}
+                                  <Typography variant="body2">
+                                    {column.value ? column.value : ''}
+                                  </Typography>
                                 </TableCell>
                               ))}
                             </TableRow>
-                          </TableHead>
-
-                          <TableBody>
-                            {priority.objectives
-                              .filter((objective) => !isObjectiveUndefined(objective))
-                              .map((objective, objIndex) => (
-                                <TableRow key={objIndex}>
-                                  <TableCell
-                                    sx={{
-                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
-                                      width: '25%'
-                                    }}
-                                  >
-                                    {objective.description || 'Non défini'}
-                                  </TableCell>
-                                  <TableCell
-                                    sx={{
-                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
-                                      width: '10%'
-                                    }}
-                                  >
-                                    <Box
-                                      sx={{
-                                        color: objective.weighting >= 50 ? 'primary.main' : 'error.main',
-                                        padding: '8px 16px',
-                                        borderRadius: '8px',
-                                        textAlign: 'center'
-                                      }}
-                                    >
-                                      <Typography>{objective.weighting || ''} %</Typography>
-                                    </Box>
-                                  </TableCell>
-                                  <TableCell
-                                    sx={{
-                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
-                                      width: '25%'
-                                    }}
-                                  >
-                                    {objective.resultIndicator || 'Non défini'}
-                                  </TableCell>
-                                  <TableCell
-                                    sx={{
-                                      borderRight: '1px solid rgba(224, 224, 224, 1)',
-                                      width: '10%'
-                                    }}
-                                  >
-                                    <Box
-                                      sx={{
-                                        backgroundColor: objective.result >= 50 ? '#E8EAF6' : 'rgba(244, 67, 54, 0.1)',
-                                        color: objective.result >= 50 ? 'primary.main' : 'error.main',
-                                        padding: '8px 16px',
-                                        borderRadius: '8px',
-                                        textAlign: 'center'
-                                      }}
-                                    >
-                                      <Typography>{objective.result || ''} %</Typography>
-                                    </Box>
-                                  </TableCell>
-                                  {objective.dynamicColumns?.map((column, colIndex) => (
-                                    <TableCell
-                                      key={colIndex}
-                                      sx={{
-                                        width: '10%'
-                                      }}
-                                    >
-                                      {column.value || ''}
-                                    </TableCell>
-                                  ))}
-                                </TableRow>
-                              ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Grid>
-                  </Grid>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 </CardContent>
               </Card>
             ))}
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-              <Button
-                variant="contained"
-                color="success"
-                disabled={isValidated}
-                onClick={validateFinalObjectifHistory}
-              >
-                {isValidated ? 'Déjà validé' : 'Valider'}
-              </Button>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mt: 2, 
+              p: 1, 
+              backgroundColor: '#f5f5f5', 
+              borderRadius: 0.5 
+            }}>
             </Box>
+
+            <Dialog open={openConfirmModal} onClose={() => setOpenConfirmModal(false)} maxWidth="xs">
+              <DialogTitle>Confirmer l'enregistrement</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2">
+                  Êtes-vous sûr de vouloir enregistrer ces résultats ?
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Vous pourrez toujours les modifier avant la validation définitive.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setOpenConfirmModal(false)} size="small">Annuler</Button>
+                <Button 
+                  onClick={() => {
+                    setOpenConfirmModal(false);
+                    handleSaveResults();
+                  }} 
+                  variant="contained" 
+                  color="primary"
+                  size="small"
+                >
+                  Confirmer
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog open={openValidationConfirmModal} onClose={() => setOpenValidationConfirmModal(false)} maxWidth="xs">
+              <DialogTitle>Confirmer la validation</DialogTitle>
+              <DialogContent>
+                <Typography variant="body2" gutterBottom>
+                  Êtes-vous sûr de vouloir valider vos objectifs et résultats ?
+                </Typography>
+                <Alert severity="warning" sx={{ mt: 1, py: 0.5 }}>
+                  <Typography variant="body2">
+                    <strong>Attention :</strong> Après validation, vous ne pourrez plus modifier vos résultats.
+                  </Typography>
+                </Alert>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Cette action est irréversible pour la période d'évaluation en cours.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setOpenValidationConfirmModal(false)} size="small">Annuler</Button>
+                <Button 
+                  onClick={() => {
+                    setOpenValidationConfirmModal(false);
+                    validateFinalObjectifHistory();
+                  }} 
+                  variant="contained" 
+                  color="success"
+                  size="small"
+                >
+                  Confirmer la validation
+                </Button>
+              </DialogActions>
+            </Dialog>
           </>
         )}
       </Box>

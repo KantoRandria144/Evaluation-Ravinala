@@ -57,7 +57,7 @@ const CountCadre = ({ isLoading }) => {
   useEffect(() => {
       const fetchUserCount = async () => {
         try {
-          // Remplacez l'URL par celle de votre API backend
+            // Remplacez l'URL par celle de votre API backend
           const response = await authInstance.get(`/StatUser/user/count`);
           
           // Extraire uniquement le total Cadre + NonCadre

@@ -5,6 +5,7 @@ import { authInstance } from '../../../../axiosConfig';
 import Popper from '@mui/material/Popper';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import AuditService from '../../../../services/AuditService';
 
 const CustomPopper = (props) => (
     <Popper {...props} style={{ width: '450px' }} placement="bottom-start" />
@@ -15,11 +16,14 @@ const Autorisation = () => {
     const [users, setUsers] = useState([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
 
     const fetchUsers = async () => {
         try {
             const response = await authInstance.get('/User/users-with-null-type');
             setUsers(response.data);
+            
         } catch (err) {
             const errorData = err.response?.data;
             setErrorMessage(
@@ -54,6 +58,14 @@ const Autorisation = () => {
     
             setSuccessMessage(response.data);
             setErrorMessage('');
+            await AuditService.logAction(
+                userId,
+                'Mise à jour du type d\'utilisateurs',
+                'Update',
+                null,
+                formData.users.map(user => ({ userId: user.id, oldType: null })),
+                { userIds, newType: formData.typeUser }
+            );
         } catch (error) {
             const errorData = error.response?.data;
             setErrorMessage(

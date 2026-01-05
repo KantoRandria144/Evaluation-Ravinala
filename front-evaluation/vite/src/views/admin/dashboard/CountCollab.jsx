@@ -7,10 +7,10 @@ import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import GroupIcon from '@mui/icons-material/Group'; // Remplacement de PersonIcon par GroupIcon
-import axios from 'axios';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import { authInstance } from '../../../axiosConfig';
+import AuditService from '../../../services/AuditService';
 
 /**
  * Composant UserCard qui affiche le nombre de collaborateurs directs d'un supérieur.
@@ -18,23 +18,19 @@ import { authInstance } from '../../../axiosConfig';
  * @param {string} superiorId - L'ID du supérieur pour lequel récupérer le nombre de collaborateurs.
  * @param {string} label - Le label à afficher sous le nombre de collaborateurs.
  */
-const UserCard = ({ superiorId, label }) => {
+const UserCard = ({ superiorId }) => {
   const theme = useTheme();
 
   // États locaux pour la gestion des données, du chargement et des erreurs
   const [userCount, setUserCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const user = JSON.parse(localStorage.getItem('user')) || {};
-  const userId = user.id;
-
   // Effet pour récupérer le nombre de collaborateurs lorsque le composant monte ou que superiorId change
   useEffect(() => {
     const fetchUserCount = async () => {
       try {
         // Remplacez l'URL par celle de votre API backend
         const response = await authInstance.get(`/StatUser/user/count`);
-        
         // Extraire uniquement le total Cadre + NonCadre
         const totalCadreNonCadre = response.data.TotalCadreNonCadre;
   

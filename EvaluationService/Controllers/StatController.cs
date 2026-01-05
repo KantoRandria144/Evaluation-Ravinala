@@ -197,12 +197,24 @@ namespace EvaluationService.Controllers
         //     return Ok(result);
         // }
 
+        // DTOs pour éviter les types anonymes et améliorer les performances
+        public class ObjectiveValueDto
+        {
+            public string Value { get; set; } = string.Empty;
+            public string? ValidatedBy { get; set; }
+            public DateTime CreatedAt { get; set; }
+        }
+
+        public class ObjectiveColumnDto
+        {
+            public string ColumnName { get; set; } = string.Empty;
+            public List<ObjectiveValueDto> Values { get; set; } = new();
+        }
+
         [HttpGet("getEvaluationFinaleScores/{year}")]
         public async Task<IActionResult> GetEvaluationFinaleScores(int year)
         {
-            // -----------------------------
             // 1) Calcul des scores par user
-            // -----------------------------
             var evaluationFinaleScores = _context.HistoryCFis
                 .Join(
                     _context.UserEvaluations,
@@ -216,16 +228,15 @@ namespace EvaluationService.Controllers
                     e => e.EvalId,
                     (combined, e) => new { combined.hcfi, combined.ue, e }
                 )
-                // Filtre : année + type "Cadre"
                 .Where(result =>
                     result.e.EvalAnnee == year &&
                     result.e.Type == "Cadre"
                 )
-                // On groupe par l'ID de l'utilisateur
-                .GroupBy(result => result.ue.UserId)
+                .GroupBy(result => new { result.ue.UserId, result.ue.UserEvalId })
                 .Select(group => new
                 {
-                    UserId = group.Key,
+                    UserId = group.Key.UserId,
+                    UserEvalId = group.Key.UserEvalId,
                     Score = Math.Truncate(
                         group.Sum(item => (item.hcfi.Weighting * item.hcfi.Result) / 100)
                         * 100
@@ -234,49 +245,154 @@ namespace EvaluationService.Controllers
                 .ToList();
 
             if (!evaluationFinaleScores.Any())
-            {
-                return NotFound(new { message = "No evaluation finale scores found for the specified year." });
-            }
+                return NotFound(new { message = "Aucun score trouvé pour cette année." });
 
-            // ----------------------------------------------------
-            // 2) Récupération des infos Users via UserService (API)
-            // ----------------------------------------------------
+            // 2) Récupération des Users via UserService
             var userServiceClient = _httpClientFactory.CreateClient("UserService");
-
-            // Supposons que GET "api/User/user" renvoie un tableau JSON de la forme:
-            // [
-            //   { "id": "123", "name": "John", "email": "john@xxx.com", "department": "IT", ... },
-            //   ...
-            // ]
             var usersResponse = await userServiceClient.GetAsync("api/User/user");
-            usersResponse.EnsureSuccessStatusCode(); // lève une exception si code != 200
-
+            usersResponse.EnsureSuccessStatusCode();
             var allUsers = await usersResponse.Content.ReadFromJsonAsync<List<UserDTO>>();
-            if (allUsers == null)
-            {
-                return StatusCode(500, "Impossible de lire la liste des utilisateurs du service UserService.");
-            }
 
-            // -----------------------------------------
-            // 3) Jointure en mémoire des scores + users
-            // -----------------------------------------
-            // Pour chaque score, on retrouve l'utilisateur correspondant (via group join).
+            if (allUsers == null)
+                return StatusCode(500, "Impossible de lire la liste des utilisateurs du service UserService.");
+
+            // 3) Récupération optimisée des objectifs via une seule requête JOIN
+            var userEvalIds = evaluationFinaleScores.Select(s => s.UserEvalId).ToList();
+            
+            var objectivesByUserEval = _context.HistoryCFis
+                .Where(h => userEvalIds.Contains(h.UserEvalId))
+                .Join(
+                    _context.HistoryObjectiveColumnValuesFis,
+                    h => h.HcfiId,
+                    hocv => hocv.HcfiId,
+                    (h, hocv) => new
+                    {
+                        h.UserEvalId,
+                        hocv.ColumnName,
+                        hocv.Value,
+                        hocv.ValidatedBy,
+                        hocv.CreatedAt
+                    }
+                )
+                .GroupBy(x => x.UserEvalId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(x => x.ColumnName)
+                        .Select(columnGroup => new ObjectiveColumnDto
+                        {
+                            ColumnName = columnGroup.Key,
+                            Values = columnGroup.Select(x => new ObjectiveValueDto
+                            {
+                                Value = x.Value,
+                                ValidatedBy = x.ValidatedBy,
+                                CreatedAt = x.CreatedAt
+                            }).ToList()
+                        }).ToList()
+                );
+
+            // 4) Jointure finale : scores + user info + objectifs
             var result = (from score in evaluationFinaleScores
-                          join usr in allUsers on score.UserId equals usr.Id
-                          orderby score.Score descending // Tri du meilleur au pire score
-                          select new
-                          {
-                              UserId = usr.Id,
-                              Matricule = usr.Matricule,
-                              Name = usr.Name,
-                              Email = usr.Email,
-                              Department = usr.Department,
-                              // Ajoutez ici toutes les propriétés de usr dont vous avez besoin
-                              Score = score.Score
-                          }).ToList();
+                        join usr in allUsers on score.UserId equals usr.Id
+                        select new
+                        {
+                            UserId = usr.Id,
+                            UserEvalId = score.UserEvalId,
+                            Matricule = usr.Matricule,
+                            Name = usr.Name,
+                            Email = usr.Email,
+                            Department = usr.Department,
+                            Score = score.Score,
+                            Objectives = objectivesByUserEval.GetValueOrDefault(score.UserEvalId) ?? new List<ObjectiveColumnDto>()
+                        })
+                        .OrderByDescending(x => x.Score)
+                        .ToList();
 
             return Ok(result);
         }
+
+
+        // -------------------------------------------------------------------------------------------------------------------------
+
+        // [HttpGet("getEvaluationFinaleScores/{year}")]
+        // public async Task<IActionResult> GetEvaluationFinaleScores(int year)
+        // {
+        //     // -----------------------------
+        //     // 1) Calcul des scores par user
+        //     // -----------------------------
+        //     var evaluationFinaleScores = _context.HistoryCFis
+        //         .Join(
+        //             _context.UserEvaluations,
+        //             hcfi => hcfi.UserEvalId,
+        //             ue => ue.UserEvalId,
+        //             (hcfi, ue) => new { hcfi, ue }
+        //         )
+        //         .Join(
+        //             _context.Evaluations,
+        //             combined => combined.ue.EvalId,
+        //             e => e.EvalId,
+        //             (combined, e) => new { combined.hcfi, combined.ue, e }
+        //         )
+        //         // Filtre : année + type "Cadre"
+        //         .Where(result =>
+        //             result.e.EvalAnnee == year &&
+        //             result.e.Type == "Cadre"
+        //         )
+        //         // On groupe par l'ID de l'utilisateur
+        //         .GroupBy(result => result.ue.UserId)
+        //         .Select(group => new
+        //         {
+        //             UserId = group.Key,
+        //             Score = Math.Truncate(
+        //                 group.Sum(item => (item.hcfi.Weighting * item.hcfi.Result) / 100)
+        //                 * 100
+        //             ) / 100
+        //         })
+        //         .ToList();
+
+        //     if (!evaluationFinaleScores.Any())
+        //     {
+        //         return NotFound(new { message = "No evaluation finale scores found for the specified year." });
+        //     }
+
+        //     // ----------------------------------------------------
+        //     // 2) Récupération des infos Users via UserService (API)
+        //     // ----------------------------------------------------
+        //     var userServiceClient = _httpClientFactory.CreateClient("UserService");
+
+        //     // Supposons que GET "api/User/user" renvoie un tableau JSON de la forme:
+        //     // [
+        //     //   { "id": "123", "name": "John", "email": "john@xxx.com", "department": "IT", ... },
+        //     //   ...
+        //     // ]
+        //     var usersResponse = await userServiceClient.GetAsync("api/User/user");
+        //     usersResponse.EnsureSuccessStatusCode(); // lève une exception si code != 200
+
+        //     var allUsers = await usersResponse.Content.ReadFromJsonAsync<List<UserDTO>>();
+        //     if (allUsers == null)
+        //     {
+        //         return StatusCode(500, "Impossible de lire la liste des utilisateurs du service UserService.");
+        //     }
+
+        //     // -----------------------------------------
+        //     // 3) Jointure en mémoire des scores + users
+        //     // -----------------------------------------
+        //     // Pour chaque score, on retrouve l'utilisateur correspondant (via group join).
+        //     var result = (from score in evaluationFinaleScores
+        //                   join usr in allUsers on score.UserId equals usr.Id
+        //                   orderby score.Score descending // Tri du meilleur au pire score
+        //                   select new
+        //                   {
+        //                       UserId = usr.Id,
+        //                       Matricule = usr.Matricule,
+        //                       Name = usr.Name,
+        //                       Email = usr.Email,
+        //                       Department = usr.Department,
+        //                       // Ajoutez ici toutes les propriétés de usr dont vous avez besoin
+        //                       Score = score.Score 
+        //                   }).ToList();
+
+        //     return Ok(result);
+        // }
 
 
         //---------------------------------------------------------------------------------NonCadre
@@ -636,15 +752,15 @@ namespace EvaluationService.Controllers
                     ue => ue.EvalId,
                     (e, ue) => new { e, ue }
                 )
-                // Filtre sur l'année, + éventuellement e.Type == "NonCadre"
-                .Where(x => x.e.EvalAnnee == year /* && x.e.Type == "NonCadre" */)
+                .Where(x => x.e.EvalAnnee == year && x.e.Type == "NonCadre")
                 .Select(x => new
                 {
                     x.e.EvalId,
                     x.e.EvalAnnee,
                     x.e.CompetenceWeightTotal,
                     x.e.IndicatorWeightTotal,
-                    UserId = x.ue.UserId
+                    UserId = x.ue.UserId,
+                    UserEvalId = x.ue.UserEvalId
                 })
                 .ToList();
 
@@ -654,7 +770,7 @@ namespace EvaluationService.Controllers
             }
 
             // 2) Calculer le score pour chaque (user, EvalId)
-            var scoresList = new List<(string UserId, int Year, decimal Score)>();
+            var scoresList = new List<(string UserId, int UserEvalId, int Year, decimal Score)>();
 
             var groupedByUser = allEvalData.GroupBy(e => e.UserId);
 
@@ -706,14 +822,13 @@ namespace EvaluationService.Controllers
                     }
                     else
                     {
-                        // Si pas d'indicateur => on prend seulement la partie compétences
                         finalScore = Math.Round(
                             competenceAvg * competenceWeightTotal / 100,
                             2
                         );
                     }
 
-                    scoresList.Add((evaluation.UserId, evaluation.EvalAnnee, finalScore));
+                    scoresList.Add((evaluation.UserId, evaluation.UserEvalId, evaluation.EvalAnnee, finalScore));
                 }
             }
 
@@ -743,21 +858,56 @@ namespace EvaluationService.Controllers
                 );
             }
 
-            // 4) Jointure en mémoire : associer UserId + Score avec les détails et trier par Score décroissant
+            // 4) Récupération optimisée des objectifs via une seule requête JOIN
+            var userEvalIds = scoresList.Select(s => s.UserEvalId).ToList();
+
+            var objectivesByUserEval = _context.HistoryCFis
+                .Where(h => userEvalIds.Contains(h.UserEvalId))
+                .Join(
+                    _context.HistoryObjectiveColumnValuesFis,
+                    h => h.HcfiId,
+                    hocv => hocv.HcfiId,
+                    (h, hocv) => new
+                    {
+                        h.UserEvalId,
+                        hocv.ColumnName,
+                        hocv.Value,
+                        hocv.ValidatedBy,
+                        hocv.CreatedAt
+                    }
+                )
+                .GroupBy(x => x.UserEvalId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(x => x.ColumnName)
+                        .Select(columnGroup => new ObjectiveColumnDto
+                        {
+                            ColumnName = columnGroup.Key,
+                            Values = columnGroup.Select(x => new ObjectiveValueDto
+                            {
+                                Value = x.Value,
+                                ValidatedBy = x.ValidatedBy,
+                                CreatedAt = x.CreatedAt
+                            }).ToList()
+                        }).ToList()
+                );
+
+            // 5) Jointure en mémoire : associer UserId + Score + Objectives avec les détails et trier par Score décroissant
             var finalResult = from scoreItem in scoresList
                               join usr in allUsers on scoreItem.UserId equals usr.Id
-                              // On filtre ici pour ne renvoyer que ceux qui ont un score > 0
                               where scoreItem.Score > 0
-                              orderby scoreItem.Score descending // Ajout de l'ordre décroissant
+                              orderby scoreItem.Score descending
                               select new
                               {
                                   UserId = usr.Id,
+                                  UserEvalId = scoreItem.UserEvalId,
                                   Matricule = usr.Matricule,
                                   usr.Name,
                                   usr.Email,
                                   usr.Department,
                                   Year = scoreItem.Year,
-                                  Score = scoreItem.Score
+                                  Score = scoreItem.Score,
+                                  Objectives = objectivesByUserEval.GetValueOrDefault(scoreItem.UserEvalId) ?? new List<ObjectiveColumnDto>()
                               };
 
             return Ok(finalResult);

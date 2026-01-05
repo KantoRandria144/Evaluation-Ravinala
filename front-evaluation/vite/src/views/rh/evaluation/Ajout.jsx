@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { formulaireInstance } from '../../../axiosConfig';
 import { useNavigate } from 'react-router-dom';
+import AuditService from '../../../services/AuditService';
 
 const Ajout = () => {
   const [isDataUpdated, setIsDataUpdated] = useState(false);
@@ -143,6 +144,7 @@ const Ajout = () => {
       setErrors(validationErrors);
       setBackendErrors([]);
       setSuccessMessage('');
+      
       return;
     }
 
@@ -150,9 +152,18 @@ const Ajout = () => {
       const response = await formulaireInstance.post(`/Periode?userId=${userId}`, formData);
 
       if (response.data.success) {
+        await AuditService.logAction(
+          userId,
+          'Ajout d\'une nouvelle période d\'évaluation',
+          'Create',
+          null,
+          null,
+          { ...formData }
+        );
         setBackendErrors([]);
         setIsDataUpdated(true);
-
+        setSuccessMessage('Période d\'évaluation ajoutée avec succès.');
+    
         // Réinitialiser les champs
         setFormData({
           evalAnnee: '',
@@ -165,7 +176,7 @@ const Ajout = () => {
           type: '',
         });
 
-          navigate('/evaluation/listeEvaluation');
+        navigate('/evaluation/listeEvaluation');
       } else {
         // Dans le cas où le backend retourne Success: false avec HTTP 200
         setBackendErrors(response.data.errors || []);
@@ -179,6 +190,7 @@ const Ajout = () => {
         setBackendErrors([error.response?.data?.message || 'Une erreur est survenue.']);
       }
       setSuccessMessage('');
+      
     }
   };
 

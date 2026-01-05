@@ -37,6 +37,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AuditService from '../../../../services/AuditService';
 
 // Styled components for table cells and rows
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -92,12 +93,10 @@ const Formulaire = () => {
 
   const [canEdit, setCanEdit] = useState(false);
   const EDIT_FORM = 10; //modifier la formulaire d'évaluation
-
+  const user = JSON.parse(localStorage.getItem('user'));
+  const userId = user.id;
   const checkPermissions = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const userId = user.id;
-
       const editResponse = await formulaireInstance.get(
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${EDIT_FORM}`
       );
@@ -150,29 +149,40 @@ const Formulaire = () => {
   }, [templateId]);
 
   const handleSaveTemplateName = async () => {
-    if (!newTemplateName.trim()) {
-      setErrorMessage('Le nom du formulaire ne peut pas être vide.');
-      return;
-    }
+  if (!newTemplateName.trim()) {
+    setErrorMessage('Le nom du formulaire ne peut pas être vide.');
+    setOpenSnackbar(true);
+    return;
+  }
 
-    try {
-      await formulaireInstance.put(`/Template/UpdateNonCadreTemplateName`, newTemplateName, {
-        headers: { 'Content-Type': 'application/json' }
-      });
+  try {
+    await formulaireInstance.put(`/Template/UpdateCadreTemplateName`, newTemplateName, {
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-      setFormTemplate((prevTemplate) => ({ ...prevTemplate, name: newTemplateName }));
-      setIsModalOpen(false);
-      setErrorMessage(null);
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du nom du formulaire:', error);
+    await AuditService.logAction(
+      userId,
+      `Modification du nom du template à: ${newTemplateName}`,
+      'Update',
+      null,
+      { oldName: formTemplate?.name || '' },
+      { newName: newTemplateName }
+    );
 
-      if (error.response && error.response.data) {
-        setErrorMessage(error.response.data.title || 'Erreur lors de la mise à jour.');
-      } else {
-        setErrorMessage('Erreur réseau lors de la mise à jour.');
-      }
-    }
-  };
+    setFormTemplate((prevTemplate) => ({ ...prevTemplate, name: newTemplateName }));
+    setIsModalOpen(false);
+    setIsEditIconVisible(false);
+    setIsEditing(false);
+    setErrorMessage('');
+    setOpenSnackbar(false);
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du nom du formulaire:', error);
+    // setErrorMessage(
+    //   error.response?.data?.title || 'Erreur lors de la mise à jour du nom du modèle.'
+    // );
+    setOpenSnackbar(true);
+  }
+};
 
   const handleEditClick = () => {
     setIsEditing((prev) => !prev);
@@ -204,6 +214,13 @@ const Formulaire = () => {
         Label: newIndicatorLabel,
         MaxResults: newMaxResults
       });
+
+      await AuditService.logAction(
+        userId,
+        `Ajout d'un indicateur: ${newIndicatorLabel}`,
+        'Create',
+        null
+      );
 
       console.log('Indicateur ajouté:', response.data);
 
@@ -285,6 +302,13 @@ const Formulaire = () => {
 
       await formulaireInstance.put('/Template/UpdateIndicators', updates);
 
+      await AuditService.logAction(
+        userId,
+        'Mise à jour des indicateurs',
+        'Update',
+        null
+      );
+
       // Rafraîchir le template après la mise à jour
       await fetchTemplate();
       setErrorMessage(null);
@@ -354,7 +378,12 @@ const Formulaire = () => {
       console.log('Mise à jour des aides:', updates);
 
       await formulaireInstance.put('/Template/UpdateHelps', updates);
-
+      await AuditService.logAction(
+        userId,
+        'Mise à jour des aides au développement professionnel',
+        'Update',
+        null
+      );
       // Rafraîchir le template après la mise à jour
       await fetchTemplate();
       setErrorMessage(null);
@@ -397,6 +426,12 @@ const Formulaire = () => {
         TemplateId: templateId,
         AllowedUserLevel: newHelpAllowedUserLevel
       });
+      await AuditService.logAction(
+        userId,
+        `Ajout d'une aide au développement professionnel: ${newHelpName}`,
+        'Create',
+        null
+      );
 
       console.log('Aide ajoutée:', response.data);
 
@@ -529,6 +564,15 @@ const Formulaire = () => {
       }
   
       pdf.save('formulaire_Non_Cadre.pdf');
+      AuditService.logAction(
+        userId,
+        'Exportation du formulaire en PDF',
+        'Export',
+        null
+      ).catch((err) => {
+        console.error('Erreur lors de l\'enregistrement de l\'audit:', err);
+        setErrorMessage('Erreur lors de l\'enregistrement de l\'action d\'audit.');
+      });
     }).catch((err) => {
       console.error('Erreur lors de la génération du PDF', err);
       setErrorMessage('Erreur lors de la génération du PDF.');

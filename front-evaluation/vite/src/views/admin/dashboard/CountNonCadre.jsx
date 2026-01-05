@@ -60,8 +60,7 @@ const TotalIncomeLightCard = ({ isLoading, label }) => {
             
             // Extraire uniquement le total Cadre + NonCadre
             const nonCadre = response.data.NonCadre;
-      
-            // Mettre à jour l'état avec la valeur récupérée
+              // Mettre à jour l'état avec la valeur récupérée
             setNonCadresCount(nonCadre);
           } catch (err) {
             console.error('Erreur lors de la récupération du nombre de collaborateurs:', err);

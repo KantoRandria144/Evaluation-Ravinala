@@ -19,6 +19,7 @@ import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 import CheckIcon from '@mui/icons-material/Check';
 import MainCard from 'ui-component/cards/MainCard';
 import { authInstance, formulaireInstance } from '../../../../axiosConfig';
+import AuditService from '../../../../services/AuditService';
 
 const NOnAutoriser = () => {
   const [openRow, setOpenRow] = useState(null);
@@ -38,6 +39,8 @@ const NOnAutoriser = () => {
   const [canClassify, setCanClassify] = useState(false);
 
   // Vérifier habilitations
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
   const checkPermissions = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -48,6 +51,7 @@ const NOnAutoriser = () => {
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${CLASSIFIER}`
       );
       setCanClassify(classifyResponse.data.hasAccess);
+      
     } catch (error) {
       console.error('Erreur lors de la vérification des autorisations :', error);
     }
@@ -58,17 +62,18 @@ const NOnAutoriser = () => {
     fetchInitialUsers();
   }, []);
 
-  // Récupération initiale des utilisateurs (TypeUser = null)
+  // Consultation initiale des utilisateurs (TypeUser = null)
   const fetchInitialUsers = async () => {
     try {
       const response = await authInstance.get('/User/users-with-null-type');
       setEmployees(response.data);
+
     } catch (error) {
       console.error('Error fetching users with null type:', error);
     }
   };
 
-  // Récupération filtrée des utilisateurs (TypeUser = null)
+  // Consultation filtrée des utilisateurs (TypeUser = null)
   // On met "undefined" si un champ est vide
   const fetchFilteredUsers = async (nameOrMail, department) => {
     try {
@@ -80,6 +85,12 @@ const NOnAutoriser = () => {
       });
       setEmployees(response.data);
       setCurrentPage(1); // Revenir à la page 1 après filtrage
+      await AuditService.logAction(
+        userId,
+        'Consultation des utilisateurs non classifiés avec filtres',
+        'Fetch',
+        null
+      );
     } catch (error) {
       console.error('Error fetching filtered users with null type:', error);
     }

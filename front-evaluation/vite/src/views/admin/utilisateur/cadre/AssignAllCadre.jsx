@@ -5,6 +5,7 @@ import { authInstance } from '../../../../axiosConfig';
 import Popper from '@mui/material/Popper';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import AuditService from '../../../../services/AuditService';
 
 const CustomPopper = (props) => (
     <Popper {...props} style={{ width: '450px' }} placement="bottom-start" />
@@ -16,11 +17,19 @@ const AssignAllCadre = () => {
     const [users, setUsers] = useState([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const userId = user.id;
 
     const fetchHabilitations = async () => {
         try {
             const response = await authInstance.get('/Habilitation');
             setHabilitations(response.data);
+            await AuditService.logAction(
+              userId,
+              'Récupération des habilitations pour assignation cadre',
+              'Fetch',
+              null
+            );
         } catch (err) {
             setErrorMessage(err.response?.data || 'Error fetching habilitations');
         }
@@ -30,6 +39,12 @@ const AssignAllCadre = () => {
         try {
             const response = await authInstance.get('/User/users-cadre');
             setUsers(response.data);
+            await AuditService.logAction(
+              userId,
+              'Récupération des utilisateurs pour assignation cadre',
+              'Fetch',
+              null
+            );
         } catch (err) {
             setErrorMessage(err.response?.data || 'Error fetching users');
         }
@@ -60,6 +75,12 @@ const AssignAllCadre = () => {
             });
             setSuccessMessage(response.data);  // Display success message directly from backend
             setErrorMessage('');
+            await AuditService.logAction(
+              userId,
+              'Assignation d\'habilitations aux utilisateurs',
+              'Create',
+              null
+            );
         } catch (error) {
             setErrorMessage(error.response?.data || 'Unknown error occurred');
             setSuccessMessage('');

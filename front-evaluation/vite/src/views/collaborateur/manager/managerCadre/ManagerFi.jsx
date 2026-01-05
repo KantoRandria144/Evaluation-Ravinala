@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { formulaireInstance, authInstance } from '../../../../axiosConfig';
-import MainCard from 'ui-component/cards/MainCard';
 import {
   Box,
   TextField,
@@ -13,63 +12,111 @@ import {
   CardContent,
   Grid,
   Paper,
-  Dialog, // ***
-  DialogTitle, // ***
-  DialogContent, // ***
-  DialogActions, // ****
-  Alert
-} from '@mui/material'; // Assurez-vous que ces imports sont corrects
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Container,
+  Tooltip,
+  IconButton,
+  Snackbar,
+  Alert,
+  InputAdornment,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Divider,
+  Chip
+} from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyboardArrowLeft, KeyboardArrowRight } from '@mui/icons-material';
 import { IconTargetArrow } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import InputAdornment from '@mui/material/InputAdornment';
+import HelpIcon from '@mui/icons-material/Help';
+import HistoryIcon from '@mui/icons-material/History';
 
-function ManagerFi({ subordinateId, typeUser }) {
+function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
   const managerId = user.id;
-  //   const { subordinateId, typeUser } = useParams();
-  // const subordinateId = '18219f8e-b781-46ff-9182-37c9da640c03';
-  // const typeUser = 'Cadre';
 
   const [evalId, setEvalId] = useState(null);
   const [templateId, setTemplateId] = useState(null);
   const [currentPeriod, setCurrentPeriod] = useState('');
+  const [evaluationYear, setEvaluationYear] = useState('');
   const [hasOngoingEvaluation, setHasOngoingEvaluation] = useState(false);
   const [template, setTemplate] = useState({ templateStrategicPriorities: [] });
   const [activeStep, setActiveStep] = useState(0);
   const [userObjectives, setUserObjectives] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  // const [signatureFile, setSignatureFile] = useState(null);
-  // const [openSignatureModal, setOpenSignatureModal] = useState(false);
-  // const [openNoSignatureModal, setOpenNoSignatureModal] = useState(false);
-
   const [noObjectivesFound, setNoObjectivesFound] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
+  const [isManagerValidation, setIsManagerValidation] = useState(false);
+  const [validationHistory, setValidationHistory] = useState([]);
+  const [enrichedValidationHistory, setEnrichedValidationHistory] = useState([]);
+  const [openHelpModal, setOpenHelpModal] = useState(false);
+  const [openHistoryModal, setOpenHistoryModal] = useState(false);
+  const [openValidationModal, setOpenValidationModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [subordinate, setSubordinate] = useState({});
 
-  // *** Fonctions pour la modal de signature
-  // const handleOpenSignatureModal = () => {
-  //   setOpenSignatureModal(true);
-  // };
+  const handleOpenHelpModal = () => {
+    setOpenHelpModal(true);
+  };
 
-  // const handleCloseSignatureModal = () => {
-  //   setOpenSignatureModal(false);
-  // };
+  const handleCloseHelpModal = () => {
+    setOpenHelpModal(false);
+  };
 
-  // const handleSignatureFileChange = (e) => {
-  //   if (e.target.files && e.target.files.length > 0) {
-  //     setSignatureFile(e.target.files[0]);
-  //   }
-  // };
+  const handleOpenHistoryModal = () => {
+    setOpenHistoryModal(true);
+  };
 
-  // Fetch fonctions...
+  const handleCloseHistoryModal = () => {
+    setOpenHistoryModal(false);
+  };
+
+  const handleOpenValidationModal = () => {
+    if (isValidated || isManagerValidation) {
+      setErrorMessage('Les objectifs ont déjà été validés.');
+      setOpenSnackbar(true);
+      return;
+    }
+    
+    if (!validateStep()) {
+      return;
+    }
+    
+    if (calculateOverallTotal() !== 100) {
+      setErrorMessage('La pondération totale doit être exactement de 100% avant validation.');
+      setOpenSnackbar(true);
+      return;
+    }
+    
+    setOpenValidationModal(true);
+  };
+
+  const handleCloseValidationModal = () => {
+    setOpenValidationModal(false);
+  };
+
+  const handleCloseSnackbar = () => {
+    setOpenSnackbar(false);
+    setErrorMessage('');
+  };
+
   const fetchCadreTemplateId = async () => {
     try {
       const response = await formulaireInstance.get('/Template/CadreTemplate');
       if (response.data?.templateId) setTemplateId(response.data.templateId);
     } catch (error) {
       console.error('Erreur lors de la récupération du Template ID:', error);
+      setErrorMessage('Erreur lors de la récupération de l\'ID du modèle.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -83,6 +130,8 @@ function ManagerFi({ subordinateId, typeUser }) {
       setEvalId(evaluationId);
     } catch (error) {
       console.error('Erreur lors de la vérification des évaluations:', error);
+      setErrorMessage('Erreur lors de la vérification des évaluations.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -91,15 +140,17 @@ function ManagerFi({ subordinateId, typeUser }) {
 
     try {
       const response = await formulaireInstance.get(`/Template/${templateId}`);
-      console.log('Template:', response.data.template);
       setTemplate(response.data.template || { templateStrategicPriorities: [] });
 
       const periodResponse = await formulaireInstance.get('/Periode/periodeActel', { params: { type: 'Cadre' } });
       if (periodResponse.data?.length > 0) {
         setCurrentPeriod(periodResponse.data[0].currentPeriod);
+        setEvaluationYear(periodResponse.data[0].year || new Date().getFullYear().toString());
       }
     } catch (error) {
       console.error('Erreur lors de la récupération du Template:', error);
+      setErrorMessage('Erreur lors de la récupération du modèle de formulaire.');
+      setOpenSnackbar(true);
     }
   };
 
@@ -114,6 +165,28 @@ function ManagerFi({ subordinateId, typeUser }) {
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la récupération des objectifs de l'utilisateur :", error);
+      return null;
+    }
+  };
+
+  const fetchSubordinate = async () => {
+    if (!subordinateId) return;
+    try {
+      const response = await authInstance.get(`/User/user/${subordinateId}`);
+      setSubordinate(response.data || {});
+    } catch (error) {
+      console.error('Erreur lors de la récupération des infos du collaborateur:', error);
+      setErrorMessage('Erreur lors de la récupération des informations du collaborateur.');
+      setOpenSnackbar(true);
+    }
+  };
+
+  const fetchUserInfo = async (userId) => {
+    try {
+      const response = await authInstance.get(`/User/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des infos utilisateur:', error);
       return null;
     }
   };
@@ -150,19 +223,25 @@ function ManagerFi({ subordinateId, typeUser }) {
             });
             setNoObjectivesFound(false);
           } else {
-            console.log('Aucun objectif utilisateur trouvé.');
             setNoObjectivesFound(true);
           }
         } catch (error) {
           console.error('Erreur lors de la récupération des objectifs.', error);
+          setErrorMessage('Erreur lors de la récupération des objectifs.');
+          setOpenSnackbar(true);
         }
       }
+      setIsLoading(false);
     };
 
     loadUserObjectives();
   }, [evalId, subordinateId]);
 
   const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
+    if (isValidated || isManagerValidation) {
+      return;
+    }
+    
     setTemplate((prevTemplate) => {
       const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
         if (priority.name !== priorityName) return priority;
@@ -196,7 +275,19 @@ function ManagerFi({ subordinateId, typeUser }) {
             value
           };
         } else {
-          objective[field] = value;
+          if (field === 'result') {
+            let parsedValue = value.replace(',', '.');
+            if (!/^\d{0,3}(\.\d{0,2})?$/.test(parsedValue)) return priority;
+            const numericValue = parseFloat(parsedValue);
+            if (numericValue > 100) {
+              setErrorMessage('La valeur ne peut pas dépasser 100%.');
+              setOpenSnackbar(true);
+              return priority;
+            }
+            objective[field] = parsedValue;
+          } else {
+            objective[field] = value;
+          }
         }
 
         updatedObjectives[objectiveIndex] = objective;
@@ -216,64 +307,175 @@ function ManagerFi({ subordinateId, typeUser }) {
         }
       });
 
-      // Vérifier si la réponse contient des données
       if (response.data && response.data.length > 0) {
-        // Rechercher une entrée validée
         const hasValidatedEntry = response.data.some((entry) => entry.validatedBy);
-
-        if (hasValidatedEntry) {
-          setIsValidated(true); // Marquer comme validé
-          console.log('Validation existante détectée');
-        } else {
-          setIsValidated(false); // Pas de validation
-          console.log('Aucune validation trouvée');
-        }
+        setIsValidated(hasValidatedEntry);
+        
+        // Enrichir l'historique
+        const uniqueValidatorMap = new Map();
+        const history = response.data.filter(entry => entry.validatedBy !== null);
+        
+        history.forEach((entry) => {
+          if (!uniqueValidatorMap.has(entry.validatedBy)) {
+            uniqueValidatorMap.set(entry.validatedBy, entry);
+          }
+        });
+        
+        const uniqueHistory = Array.from(uniqueValidatorMap.values());
+        setValidationHistory(uniqueHistory);
+        
+        const enriched = await Promise.all(
+          uniqueHistory.map(async (entry) => {
+            const userInfo = await fetchUserInfo(entry.validatedBy);
+            const formattedDate = entry.date || entry.createdAt ? new Date(entry.date || entry.createdAt).toLocaleDateString('fr-FR', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : 'Date non disponible';
+            return {
+              ...entry,
+              user: userInfo,
+              formattedDate,
+              status: 'Validé'
+            };
+          })
+        );
+        
+        const sortedEnriched = enriched.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+        setEnrichedValidationHistory(sortedEnriched);
       } else {
-        setIsValidated(false); // Pas de données dans la réponse
-        console.log('Aucune donnée trouvée');
+        setValidationHistory([]);
+        setEnrichedValidationHistory([]);
+        setIsValidated(false);
       }
     } catch (error) {
       console.error('Erreur lors de la vérification de la validation :', error);
+      setValidationHistory([]);
+      setEnrichedValidationHistory([]);
       setIsValidated(false);
+      if (error.response?.status >= 500) {
+        setErrorMessage('Erreur serveur lors de la vérification des données validées.');
+        setOpenSnackbar(true);
+      }
+    }
+  };
+
+  const checkManagerValidationStatus = async () => {
+    try {
+      const response = await formulaireInstance.get('/Evaluation/getHistoryFinaleByUser', {
+        params: {
+          userId: subordinateId,
+          type: typeUser
+        }
+      });
+
+      if (response.data && response.data.length > 0) {
+        const managerValidation = response.data.find((entry) => 
+          entry.validatedBy && entry.validatedBy !== subordinateId
+        );
+        setIsManagerValidation(!!managerValidation);
+      } else {
+        setIsManagerValidation(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification de la validation manager :', error);
+      setIsManagerValidation(false);
     }
   };
 
   useEffect(() => {
-    fetchCadreTemplateId();
-    checkOngoingEvaluation();
-    checkIfValidated(); // Vérifie si la validation a déjà été effectuée
+    const initData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchCadreTemplateId(),
+          checkOngoingEvaluation(),
+          checkIfValidated(),
+          checkManagerValidationStatus(),
+          fetchSubordinate()
+        ]);
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation des données:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initData();
   }, []);
 
   useEffect(() => {
-    fetchTemplate();
+    if (templateId) {
+      fetchTemplate();
+    }
   }, [templateId]);
 
+  const calculateTotalWeighting = (priority) => {
+    return (priority.objectives || []).reduce((sum, obj) => {
+      const weighting = parseFloat(obj.weighting) || 0;
+      return sum + weighting;
+    }, 0);
+  };
+
+  const calculateAverageResult = (priority) => {
+    const objectives = priority.objectives || [];
+    if (objectives.length === 0) return 0;
+    
+    const totalResult = objectives.reduce((sum, obj) => {
+      const result = parseFloat(obj.result) || 0;
+      const weighting = parseFloat(obj.weighting) || 0;
+      return sum + (result * weighting / 100);
+    }, 0);
+    
+    const totalWeighting = calculateTotalWeighting(priority);
+    return totalWeighting > 0 ? (totalResult / totalWeighting * 100) : 0;
+  };
+
+  const calculateOverallTotal = () => {
+    return template.templateStrategicPriorities.reduce((sum, priority) => sum + calculateTotalWeighting(priority), 0);
+  };
+
+  const calculateOverallAverage = () => {
+    const priorities = template.templateStrategicPriorities;
+    if (priorities.length === 0) return 0;
+    
+    let totalWeightedResult = 0;
+    let totalWeighting = 0;
+    
+    priorities.forEach(priority => {
+      const priorityObjectives = priority.objectives || [];
+      priorityObjectives.forEach(obj => {
+        const result = parseFloat(obj.result) || 0;
+        const weighting = parseFloat(obj.weighting) || 0;
+        totalWeightedResult += (result * weighting / 100);
+        totalWeighting += weighting;
+      });
+    });
+    
+    return totalWeighting > 0 ? (totalWeightedResult / totalWeighting * 100) : 0;
+  };
+
   const validateStep = () => {
-    const currentPriority = template.templateStrategicPriorities[activeStep];
+    if (isValidated || isManagerValidation) {
+      return true;
+    }
+    
+    const currentPriority = getFilteredPriorities()[activeStep];
     if (!currentPriority) return false;
 
     let isAnyObjectiveFilled = false;
 
-    for (const [index, objective] of currentPriority.objectives.entries()) {
-      const isObjectiveDefined = objective.description && objective.weighting && objective.resultIndicator;
-
-      if (!isObjectiveDefined) {
-        // Alert if new results or column values are added to undefined objectives
-        if (objective.result || (objective.dynamicColumns && objective.dynamicColumns.some((column) => column.value))) {
-          alert(
-            `Vous ne pouvez pas ajouter un nouveau résultat ou des valeurs de colonnes pour l'objectif ${index + 1} dans "${currentPriority.name}" car il n'est pas défini.`
-          );
-          return false;
-        }
-      }
-
-      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator;
-
+    for (const [index, objective] of (currentPriority.objectives || []).entries()) {
+      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator || objective.result;
       const hasDynamicColumns = Array.isArray(objective.dynamicColumns);
       const isAnyDynamicColumnFilled = hasDynamicColumns ? objective.dynamicColumns.some((column) => column.value) : false;
 
       if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result)) {
-        alert(`Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`);
+        setErrorMessage(
+          `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
+        );
+        setOpenSnackbar(true);
         return false;
       }
 
@@ -281,55 +483,69 @@ function ManagerFi({ subordinateId, typeUser }) {
         isAnyObjectiveFilled = true;
 
         if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result) {
-          alert(`Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`);
+          setErrorMessage(
+            `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
+          );
+          setOpenSnackbar(true);
           return false;
         }
       }
     }
 
     if (!isAnyObjectiveFilled) {
-      alert(`Veuillez remplir au moins un objectif pour "${currentPriority.name}".`);
+      setErrorMessage(`Veuillez remplir au moins un objectif pour "${currentPriority.name}".`);
+      setOpenSnackbar(true);
       return false;
     }
 
     return true;
   };
 
-  const steps = template.templateStrategicPriorities.map((priority) => priority.name);
+  const getFilteredPriorities = () => {
+    return template.templateStrategicPriorities.filter(priority => 
+      priority.objectives && priority.objectives.some(obj => 
+        obj.description && obj.description.trim() !== ''
+      )
+    );
+  };
 
-  const validateFinalObjectif = async () => {
-    if (isValidated) {
-      alert('Vous avez déjà validé les objectifs.');
+  const getActivePriority = () => {
+    const filteredPriorities = getFilteredPriorities();
+    return filteredPriorities[activeStep];
+  };
+
+  const steps = getFilteredPriorities().map((priority) => priority.name);
+
+  const validateFinalObjectifHistory = async () => {
+    if (isManagerValidation) {
+      setErrorMessage('Vous avez déjà effectué la validation finale.');
+      setOpenSnackbar(true);
       return;
     }
 
     try {
-      const objectivesData = template.templateStrategicPriorities.flatMap((priority) =>
-        priority.objectives.map((objective) => ({
-          objectiveId: objective.objectiveId,
-          indicatorName: priority.name,
-          description: objective.description || '',
-          weighting: parseFloat(objective.weighting) || 0,
-          resultIndicator: objective.resultIndicator || '',
-          result: parseFloat(objective.result) || 0,
-          objectiveColumnValues:
-            objective.dynamicColumns?.map((col) => ({
-              columnName: col.columnName,
-              value: col.value
-            })) || []
-        }))
+      // D'abord, effectuer la validation finale (première validation)
+      const filteredPriorities = getFilteredPriorities();
+      const objectivesData = filteredPriorities.flatMap((priority) =>
+        priority.objectives
+          .filter(obj => obj.description && obj.description.trim() !== '')
+          .map((objective) => ({
+            objectiveId: objective.objectiveId,
+            indicatorName: priority.name,
+            description: objective.description || '',
+            weighting: parseFloat(objective.weighting) || 0,
+            resultIndicator: objective.resultIndicator || '',
+            result: parseFloat(objective.result) || 0,
+            objectiveColumnValues:
+              objective.dynamicColumns?.map((col) => ({
+                columnName: col.columnName,
+                value: col.value
+              })) || []
+          }))
       );
 
-      console.log(objectivesData);
-
-      // Vérifier si au moins un objectif est valide
-      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
-        alert('Veuillez remplir au moins un objectif avec tous les champs requis.');
-        return;
-      }
-
-      // Valider les objectifs directement sans signature
-      const response = await formulaireInstance.post('/Evaluation/validateFinale', objectivesData, {
+      // Validation finale (première validation)
+      const firstValidationResponse = await formulaireInstance.post('/Evaluation/validateFinale', objectivesData, {
         params: {
           validatorUserId: managerId,
           userId: subordinateId,
@@ -337,16 +553,55 @@ function ManagerFi({ subordinateId, typeUser }) {
         }
       });
 
-      alert(response.data.message || 'Objectifs validés avec succès !');
+      console.log('Première validation réussie:', firstValidationResponse.data);
+
+      // Ensuite, effectuer la validation finale (seconde validation)
+      const historyObjectivesData = filteredPriorities.flatMap((priority) =>
+        priority.objectives
+          .filter(obj => obj.description && obj.description.trim() !== '')
+          .map((objective) => ({
+            priorityId: priority.templatePriorityId,
+            priorityName: priority.name,
+            description: objective.description || '',
+            weighting: parseFloat(objective.weighting) || 0,
+            resultIndicator: objective.resultIndicator || '',
+            result: parseFloat(objective.result) || 0,
+            dynamicColumns:
+              objective.dynamicColumns?.map((col) => ({
+                columnName: col.columnName,
+                value: col.value
+              })) || []
+          }))
+      );
+
+      // Validation finale (seconde validation)
+      const finalValidationResponse = await formulaireInstance.post('/Evaluation/validateFinaleHistory', historyObjectivesData, {
+        params: {
+          userId: subordinateId,
+          type: typeUser,
+          validatedBy: managerId
+        }
+      });
+
+      console.log('Validation finale réussie:', finalValidationResponse.data);
+
+      alert('Validation finale effectuée avec succès ! Les objectifs ont été validés définitivement.');
       window.location.reload();
     } catch (error) {
+      console.error('Erreur lors de la validation finale:', error);
+      
       if (error.response?.data?.message) {
-        alert(error.response.data.message);
+        setErrorMessage(error.response.data.message);
       } else {
-        alert('Une erreur est survenue lors de la validation.');
+        setErrorMessage('Une erreur est survenue lors de la validation finale. Veuillez réessayer.');
       }
-      console.error('Erreur lors de la validation des objectifs :', error);
+      setOpenSnackbar(true);
     }
+  };
+
+  const handleConfirmValidation = () => {
+    handleCloseValidationModal();
+    validateFinalObjectifHistory();
   };
 
   const handleNext = () => {
@@ -359,295 +614,661 @@ function ManagerFi({ subordinateId, typeUser }) {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
-  return (
-    <>
-      <Box p={3}>
-        {noObjectivesFound ? (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            Le collaborateur n'a pas encore validé ses objectifs
-          </Alert>
-        ) : (
-          <>
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label, index) => (
-                <Step key={label}>
-                  <StepLabel>{label}</StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+  if (isLoading) {
+    return (
+      <Container
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '80vh',
+          gap: 2
+        }}
+      >
+        <Box sx={{ width: '100%', maxWidth: 400 }}>
+          <Typography variant="h6" align="center" gutterBottom>
+            Chargement des données...
+          </Typography>
+          <LinearProgress />
+          <Typography variant="body2" align="center" sx={{ mt: 2, color: 'text.secondary' }}>
+            Récupération des informations de l'évaluation et du collaborateur
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
 
-            {template.templateStrategicPriorities.length > 0 && activeStep < steps.length && (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeStep}
-                  initial={{ opacity: 0, x: 50 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -50 }}
-                  transition={{ duration: 0.5 }}
-                  style={{ marginTop: '2rem' }}
-                >
-                  <Card>
-                    <CardContent>
-                      <Typography
-                        variant="h5"
-                        gutterBottom
-                        sx={{
-                          marginBottom: '20px',
-                          backgroundColor: '#fafafa',
-                          padding: 3,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}
-                      >
-                        {template.templateStrategicPriorities[activeStep].name}
-                        <IconTargetArrow style={{ color: '#3F51B5' }} />
-                      </Typography>
+  if (!hasOngoingEvaluation) {
+    return (
+      <Container
+        maxWidth="sm"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '70vh'
+        }}
+      >
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }}>
+          <Card
+            sx={{
+              boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.12)',
+              borderRadius: '16px',
+              overflow: 'hidden'
+            }}
+          >
+            <CardContent
+              sx={{
+                padding: 4,
+                textAlign: 'center',
+                backgroundColor: 'background.paper',
+                color: 'text.primary'
+              }}
+            >
+              <Box
+                sx={{
+                  marginBottom: 3,
+                  padding: 2,
+                  borderRadius: '12px',
+                  backgroundColor: 'primary.lighter',
+                  border: '1px solid',
+                  borderColor: 'primary.main'
+                }}
+              >
+                <Typography variant="h4" fontWeight="bold" color="primary.main">
+                  Aucune évaluation en cours
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ marginTop: 1 }}>
+                  Vous serez informé dès le commencement d'une nouvelle évaluation.
+                </Typography>
+              </Box>
 
-                      <Grid container spacing={3}>
-                        {Array.from({ length: template.templateStrategicPriorities[activeStep].maxObjectives }).map((_, objIndex) => {
-                          const objective = template.templateStrategicPriorities[activeStep].objectives[objIndex] || {};
-
-                          // Vérifiez si la description existe et n'est pas vide
-                          if (!objective.description || objective.description.trim() === '') {
-                            return null; // Ne rien rendre si la description est absente
-                          }
-
-                          return (
-                            <Grid item xs={12} key={objIndex}>
-                              <Paper sx={{ p: 3, backgroundColor: '#e8eaf6' }}>
-                                <Typography variant="h6" sx={{ mb: '20px' }} gutterBottom>
-                                  Objectif {objIndex + 1}
-                                  <Typography variant="h6" component="span" sx={{ fontStyle: 'italic', ml: 1, color: 'red' }}>
-                                    (Seuls les résultats sont modifiables)
-                                  </Typography>
-                                </Typography>
-
-                                <Grid container spacing={2}>
-                                  <Grid item xs={12} sm={12}>
-                                    <TextField
-                                      label={<span>Description de l'Objectif</span>}
-                                      fullWidth
-                                      variant="outlined"
-                                      multiline
-                                      minRows={2}
-                                      value={objective.description || ''}
-                                      onChange={(e) =>
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'description',
-                                          e.target.value
-                                        )
-                                      }
-                                      disabled
-                                    />
-                                  </Grid>
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      label={<span>Pondération</span>}
-                                      fullWidth
-                                      variant="outlined"
-                                      type="number"
-                                      inputProps={{ min: 0, max: 100, step: 0.01, maxLength: 6 }}
-                                      value={objective.weighting || ''}
-                                      InputProps={{
-                                        endAdornment: <InputAdornment position="end">%</InputAdornment>
-                                      }}
-                                      onChange={(e) => {
-                                        let value = e.target.value.replace(',', '.');
-                                        if (!/^\d{0,3}(\.\d{0,2})?$/.test(value)) return;
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'weighting',
-                                          value
-                                        );
-                                      }}
-                                      disabled
-                                    />
-                                  </Grid>
-
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      label={<span>Indicateur de résultat</span>}
-                                      fullWidth
-                                      variant="outlined"
-                                      multiline
-                                      minRows={2}
-                                      value={objective.resultIndicator || ''}
-                                      onChange={(e) =>
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'resultIndicator',
-                                          e.target.value
-                                        )
-                                      }
-                                      disabled
-                                    />
-                                  </Grid>
-
-                                  <Grid item xs={12}>
-                                    <TextField
-                                      label={
-                                        <span>
-                                          Resultat <span style={{ color: 'red' }}>*</span>
-                                        </span>
-                                      }
-                                      fullWidth
-                                      variant="outlined"
-                                      type="number"
-                                      inputProps={{ min: 0, max: 100, step: 0.01, maxLength: 6 }}
-                                      value={objective.result || ''}
-                                      onChange={(e) => {
-                                        let value = e.target.value.replace(',', '.');
-                                        if (!/^\d{0,3}(\.\d{0,2})?$/.test(value)) return;
-                                        handleObjectiveChange(
-                                          template.templateStrategicPriorities[activeStep].name,
-                                          objIndex,
-                                          'result',
-                                          value
-                                        );
-                                      }}
-                                      InputProps={{
-                                        endAdornment: <InputAdornment position="end">%</InputAdornment>
-                                      }}
-                                    />
-                                  </Grid>
-
-                                  {Array.isArray(objective.dynamicColumns) &&
-                                    objective.dynamicColumns.map((column, colIndex) => (
-                                      <Grid item xs={12} key={colIndex}>
-                                        <Box sx={{ mb: 2 }}>
-                                          <Typography variant="subtitle3" gutterBottom>
-                                            {column.columnName || `Colonne ${colIndex + 1}`}
-                                          </Typography>
-                                          <TextField
-                                            fullWidth
-                                            variant="outlined"
-                                            multiline
-                                            minRows={2}
-                                            value={column.value || ''}
-                                            onChange={(e) =>
-                                              handleObjectiveChange(
-                                                template.templateStrategicPriorities[activeStep].name,
-                                                objIndex,
-                                                'dynamicColumns',
-                                                e.target.value,
-                                                colIndex
-                                              )
-                                            }
-                                          />
-                                        </Box>
-                                      </Grid>
-                                    ))}
-                                </Grid>
-                              </Paper>
-                            </Grid>
-                          );
-                        })}
-                      </Grid>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </AnimatePresence>
-            )}
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
               <Button
-                disabled={activeStep === 0}
-                onClick={handleBack}
                 variant="contained"
                 color="primary"
-                startIcon={<KeyboardArrowLeft />}
+                size="large"
+                onClick={() => navigate('/dashboard/default')}
+                sx={{
+                  padding: '10px 32px',
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+                  transition: 'transform 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.2)'
+                  }
+                }}
               >
-                Précédent
+                Retour à l'accueil
               </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </Container>
+    );
+  }
 
-              {activeStep === steps.length - 1 ? (
-                <Button
-                  variant="contained"
-                  color="success"
-                  disabled={isValidated}
-                  onClick={() => {
-                    if (validateStep()) {
-                      validateFinalObjectif(); // Appeler directement la fonction de validation
-                    }
-                  }}
-                >
-                  {isValidated ? 'Déjà validé' : 'Valider'}
-                </Button>
-              ) : (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => {
-                    if (validateStep()) {
-                      handleNext();
-                    }
-                  }}
-                  endIcon={<KeyboardArrowRight />}
-                >
-                  Suivant
-                </Button>
-              )}
-            </Box>
-
-            {/* Modal pour la signature */}
-            {/* <Dialog open={openSignatureModal} onClose={handleCloseSignatureModal}>
-              <DialogTitle>Veuillez signer pour continuer</DialogTitle>
-              <DialogContent>
-                <input type="file" accept="image/*" onChange={handleSignatureFileChange} />
-                <Typography variant="body2" sx={{ mt: 2 }}>
-                  Choisissez une image contenant votre signature.
+  return (
+    <>
+      <Paper>
+        {showHeader && (
+          <Box sx={{ mb: 2, p: 2, backgroundColor: 'background.paper', borderRadius: 1 }}>
+            <Grid container alignItems="center" justifyContent="space-between">
+              <Grid item xs={12} md={8}>
+                <Typography variant="h3">
+                  <span>{currentPeriod} - {evaluationYear}</span>
                 </Typography>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={handleCloseSignatureModal}>Annuler</Button>
-                <Button
-                  onClick={() => {
-                    // Une fois qu'on a choisi la signature, on ferme la modal
-                    handleCloseSignatureModal();
-                    validateFinalObjectif();
-                  }}
-                  variant="contained"
-                  color="primary"
-                >
-                  Confirmer
-                </Button>
-              </DialogActions>
-            </Dialog> */}
+                <Grid container spacing={2} sx={{ mt: 1 }} alignItems="center">
+                  <Grid item xs={12}>
+                    <Box sx={{ p: 1, backgroundColor: '#f5f5f5', borderRadius: 1 }}>
+                      <Typography variant="body1" fontWeight="bold">
+                        Nom: {subordinate.name || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Matricule: {subordinate.matricule || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Poste: {subordinate.poste || 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        <strong>Statut :</strong> 
+                        <Box component="span" sx={{ 
+                          ml: 1,
+                          color: isManagerValidation ? 'success.main' : 
+                                 isValidated ? 'info.main' : 'warning.main',
+                          fontWeight: 'bold'
+                        }}>
+                          {isManagerValidation ? 'Validation finale ✓' : 
+                           isValidated ? 'Première validation ✓' : 'À valider'}
+                        </Box>
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Grid>
+              <Grid item sx={{ display: 'flex', gap: 1 }}>
+                <Tooltip title="Historique de validation" arrow>
+                  <IconButton aria-label="historique" onClick={handleOpenHistoryModal}>
+                    <HistoryIcon sx={{ fontSize: 20, color: 'black' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Besoin d'aide ?" arrow>
+                  <IconButton aria-label="aide" onClick={handleOpenHelpModal}>
+                    <HelpIcon sx={{ fontSize: 20, color: 'black' }} />
+                  </IconButton>
+                </Tooltip>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
 
-            {/* <Dialog open={openNoSignatureModal} onClose={() => setOpenNoSignatureModal(false)}>
-              <DialogTitle>Signature manquante</DialogTitle>
-              <DialogContent>
-                <Typography variant="body1">
-                  Vous n’avez pas encore de signature enregistrée. Veuillez{' '}
-                  <Typography
-                    component="span"
-                    onClick={() => navigate('/collab/profile')}
-                    sx={{
-                      color: '#1976d2',
-                      textDecoration: 'none',
+        <Box sx={{ p: 1 }}>
+          {noObjectivesFound ? (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Le collaborateur n'a pas encore validé ses objectifs
+            </Alert>
+          ) : (
+            <>
+              {isValidated ? (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  L'évaluation finale a déjà été validée. Aucune modification n'est possible.
+                </Alert>
+              ) : null}
+
+              <Stepper activeStep={activeStep} alternativeLabel sx={{ 
+                fontSize: '0.75rem', 
+                mb: 2,
+                '& .MuiStepLabel-root': { fontSize: '0.75rem' },
+                '& .MuiStep-root': { minHeight: 'auto' },
+                height: 'auto'
+              }}>
+                {steps.map((label, index) => {
+                  const priority = getFilteredPriorities()[index];
+                  const totalWeight = calculateTotalWeighting(priority).toFixed(1);
+                  const averageResult = calculateAverageResult(priority).toFixed(1);
+                  return (
+                    <Step key={label}>
+                      <StepLabel>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', display: 'block' }}>{label}</Typography>
+                          <Typography variant="caption" color="primary" sx={{ fontSize: '0.6rem', display: 'block' }}>
+                            Pond: {totalWeight}%
+                          </Typography>
+                          <Typography variant="caption" color="secondary" sx={{ fontSize: '0.6rem', display: 'block' }}>
+                            Résultat: {averageResult}%
+                          </Typography>
+                        </Box>
+                      </StepLabel>
+                    </Step>
+                  );
+                })}
+              </Stepper>
+
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: 2, 
+                mb: 3,
+                flexWrap: 'wrap'
+              }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  p: 1.5,
+                  minWidth: '140px'
+                }}>
+                  <Box sx={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    mb: 0.5
+                  }}>
+                    <Box sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      backgroundColor: calculateOverallTotal() === 100 ? '#4caf50' : 
+                                      calculateOverallTotal() > 100 ? '#f44336' : '#ff9800',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {calculateOverallTotal() === 100 ? '✓' : 
+                      calculateOverallTotal() > 100 ? '✗' : '!'}
+                    </Box>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'medium' }}>
+                      Pondération
+                    </Typography>
+                  </Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
                       fontWeight: 'bold',
-                      cursor: 'pointer'
+                      color: calculateOverallTotal() === 100 ? '#4caf50' : 
+                            calculateOverallTotal() > 100 ? '#f44336' : '#ff9800'
                     }}
                   >
-                    cliquer ici
-                  </Typography>{' '}
-                  pour continuer.
-                </Typography>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setOpenNoSignatureModal(false)} variant="contained" color="primary">
-                  Fermer
+                    {calculateOverallTotal().toFixed(1)}%
+                  </Typography>
+                </Box>
+
+                <Divider orientation="vertical" flexItem sx={{ height: 'auto' }} />
+
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  p: 1.5,
+                  minWidth: '140px'
+                }}>
+                  <Box sx={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    mb: 0.5
+                  }}>
+                    <Box sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      backgroundColor: calculateOverallAverage() >= 80 ? '#4caf50' : 
+                                      calculateOverallAverage() >= 60 ? '#ff9800' : '#f44336',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {calculateOverallAverage() >= 80 ? '✓' : 
+                      calculateOverallAverage() >= 60 ? '⚠' : '✗'}
+                    </Box>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 'medium' }}>
+                      Moyenne
+                    </Typography>
+                  </Box>
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 'bold',
+                      color: calculateOverallAverage() >= 80 ? '#4caf50' : 
+                            calculateOverallAverage() >= 60 ? '#ff9800' : '#f44336'
+                    }}
+                  >
+                    {calculateOverallAverage().toFixed(1)}%
+                  </Typography>
+                </Box>
+              </Box>
+
+              {getFilteredPriorities().length > 0 && activeStep < steps.length && (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeStep}
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -50 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <Card sx={{ mb: 2 }}>
+                      <CardContent sx={{ p: 2 }}>
+                        <Typography
+                          variant="h5"
+                          gutterBottom
+                          sx={{
+                            marginBottom: 2,
+                            backgroundColor: '#fafafa',
+                            padding: 2,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            borderRadius: 1
+                          }}
+                        >
+                          <Box>
+                            {getActivePriority()?.name}
+                            <Typography variant="body2" color="text.secondary">
+                              Pondération totale: {calculateTotalWeighting(getActivePriority()).toFixed(1)}%
+                              | Résultat moyen: {calculateAverageResult(getActivePriority()).toFixed(1)}%
+                            </Typography>
+                          </Box>
+                          <IconTargetArrow style={{ color: '#3F51B5' }} />
+                        </Typography>
+
+                        <Grid container spacing={2}>
+                          {(getActivePriority()?.objectives || [])
+                            .filter(obj => obj.description && obj.description.trim() !== '')
+                            .map((objective, objIndex) => (
+                              <Grid item xs={12} key={objIndex}>
+                                <Paper sx={{ p: 2, backgroundColor: '#e8eaf6', borderRadius: 2 }}>
+                                  <Typography variant="h6" sx={{ mb: 2 }} gutterBottom>
+                                    Objectif {objIndex + 1}
+                                    <Typography variant="body2" component="span" sx={{ ml: 1, color: 'red', fontStyle: 'italic' }}>
+                                      (Seuls les résultats sont modifiables)
+                                    </Typography>
+                                  </Typography>
+                                  <Grid container spacing={2}>
+                                    <Grid item xs={12}>
+                                      <TextField
+                                        label="Description de l'Objectif"
+                                        fullWidth
+                                        variant="outlined"
+                                        multiline
+                                        minRows={3}
+                                        value={objective.description || ''}
+                                        disabled
+                                      />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                      <TextField
+                                        label="Pondération"
+                                        fullWidth
+                                        variant="outlined"
+                                        type="text"
+                                        value={objective.weighting || ''}
+                                        InputProps={{
+                                          endAdornment: <InputAdornment position="end">%</InputAdornment>
+                                        }}
+                                        disabled
+                                      />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                      <TextField
+                                        label="Résultat"
+                                        fullWidth
+                                        variant="outlined"
+                                        type="text"
+                                        value={objective.result || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'result',
+                                            e.target.value
+                                          )
+                                        }
+                                        error={parseFloat(objective.result) > 100}
+                                        helperText={parseFloat(objective.result) > 100 ? 'Maximum 100%' : ''}
+                                        InputProps={{
+                                          endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                                          sx: {
+                                            backgroundColor: (isValidated || isManagerValidation) ? '#f5f5f5' : 'inherit'
+                                          }
+                                        }}
+                                        disabled={isValidated || isManagerValidation}
+                                      />
+                                    </Grid>
+
+                                    <Grid item xs={12}>
+                                      <TextField
+                                        label="Indicateur de résultat"
+                                        fullWidth
+                                        variant="outlined"
+                                        multiline
+                                        minRows={3}
+                                        value={objective.resultIndicator || ''}
+                                        disabled
+                                      />
+                                    </Grid>
+
+                                    {Array.isArray(objective.dynamicColumns) &&
+                                      objective.dynamicColumns.map((column, colIndex) => (
+                                        <Grid item xs={12} key={colIndex}>
+                                          <Box sx={{ mb: 1 }}>
+                                            <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+                                              {column.columnName || `Colonne ${colIndex + 1}`}
+                                            </Typography>
+                                            <TextField
+                                              fullWidth
+                                              variant="outlined"
+                                              multiline
+                                              minRows={2}
+                                              value={column.value || ''}
+                                              disabled={isValidated || isManagerValidation}
+                                            />
+                                          </Box>
+                                        </Grid>
+                                      ))}
+                                  </Grid>
+                                </Paper>
+                              </Grid>
+                            ))}
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </AnimatePresence>
+              )}
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                <Button
+                  disabled={activeStep === 0}
+                  onClick={handleBack}
+                  variant="contained"
+                  color="primary"
+                  startIcon={<KeyboardArrowLeft />}
+                  sx={{ minWidth: 120 }}
+                >
+                  Précédent
                 </Button>
-              </DialogActions>
-            </Dialog> */}
-          </>
-        )}
-      </Box>
+
+                {activeStep === steps.length - 1 ? (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      color="success"
+                      disabled={isManagerValidation || isValidated}
+                      onClick={handleOpenValidationModal}
+                      sx={{ minWidth: 140 }}
+                    >
+                      Valider définitivement
+                    </Button>
+                  </Box>
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      if (validateStep()) {
+                        handleNext();
+                      }
+                    }}
+                    endIcon={<KeyboardArrowRight />}
+                    sx={{ minWidth: 120 }}
+                  >
+                    Suivant
+                  </Button>
+                )}
+              </Box>
+
+              <Dialog open={openValidationModal} onClose={handleCloseValidationModal} aria-labelledby="validation-dialog-title">
+                <DialogTitle id="validation-dialog-title">
+                  Confirmer la validation définitive
+                </DialogTitle>
+                <DialogContent dividers>
+                  <Typography variant="body1" gutterBottom>
+                    Êtes-vous sûr de vouloir effectuer la validation définitive des objectifs ?
+                  </Typography>
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Attention :</strong> Cette validation est définitive et effectuera les deux étapes suivantes :
+                    </Typography>
+                    <Box component="ol" sx={{ pl: 2, mt: 1 }}>
+                      <Typography component="li" variant="body2">
+                        Validation des objectifs et résultats (première validation)
+                      </Typography>
+                      <Typography component="li" variant="body2">
+                        Validation finale définitive
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Le collaborateur ne pourra plus modifier ses objectifs après cette validation.
+                    </Typography>
+                  </Alert>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Cette action est irréversible pour la période d'évaluation en cours.
+                  </Typography>
+                  <Box sx={{ mt: 2, p: 1.5, backgroundColor: '#f3e5f5', borderRadius: 1, border: '1px solid #ba68c8' }}>
+                    <Typography variant="body2" color="textSecondary">
+                      <strong>Collaborateur :</strong> {subordinate.name || 'N/A'} ({subordinate.matricule || 'N/A'})
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Période :</strong> {currentPeriod} - {evaluationYear}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Total pondération :</strong> {calculateOverallTotal().toFixed(1)}%
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                      <strong>Moyenne globale :</strong> {calculateOverallAverage().toFixed(1)}%
+                    </Typography>
+                  </Box>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseValidationModal} color="primary">
+                    Annuler
+                  </Button>
+                  <Button 
+                    onClick={handleConfirmValidation} 
+                    variant="contained"
+                    color="success"
+                    autoFocus
+                  >
+                    Confirmer la validation définitive
+                  </Button>
+                </DialogActions>
+              </Dialog>
+
+              <Dialog open={openHelpModal} onClose={handleCloseHelpModal} aria-labelledby="help-dialog-title" maxWidth="md">
+                <DialogTitle id="help-dialog-title">Aide - Évaluation Finale</DialogTitle>
+                <DialogContent dividers>
+                  <Typography variant="h6" gutterBottom>
+                    Processus de validation finale
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    Vous devez examiner les objectifs fixés et les résultats saisis par le collaborateur :
+                  </Typography>
+                  <Box component="ol" sx={{ pl: 3, mt: 2 }}>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      <strong>Validation unique :</strong> Une seule validation effectue les deux étapes (première validation + validation finale)
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Vous pouvez modifier uniquement les <strong>résultats</strong> des objectifs
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Les descriptions, pondérations et indicateurs sont verrouillés en lecture seule
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      Cliquez sur <strong>"Suivant"</strong> pour examiner chaque priorité stratégique
+                    </Typography>
+                    <Typography component="li" variant="body2" gutterBottom>
+                      La pondération totale doit être exactement de <strong>100%</strong> avant validation
+                    </Typography>
+                  </Box>
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Note :</strong> Seuls les champs de résultat sont modifiables. Les autres champs sont verrouillés car ils ont été validés précédemment.
+                    </Typography>
+                  </Alert>
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Important :</strong> La validation est définitive. Après cette validation, le collaborateur ne pourra plus modifier ses objectifs.
+                    </Typography>
+                  </Alert>
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseHelpModal} color="primary">
+                    Fermer
+                  </Button>
+                </DialogActions>
+              </Dialog>
+
+              <Dialog open={openHistoryModal} onClose={handleCloseHistoryModal} aria-labelledby="history-dialog-title" maxWidth="sm" fullWidth>
+                <DialogTitle id="history-dialog-title">Historique de validation finale</DialogTitle>
+                <DialogContent dividers sx={{ p: 0 }}>
+                  {enrichedValidationHistory.length > 0 ? (
+                    <List sx={{ width: '100%', bgcolor: 'background.paper', maxHeight: 400, overflow: 'auto' }}>
+                      {enrichedValidationHistory.map((entry, index) => (
+                        <React.Fragment key={index}>
+                          <ListItem alignItems="flex-start" sx={{ p: 2 }}>
+                            <ListItemAvatar>
+                              <Avatar sx={{ bgcolor: 'primary.main', color: 'white' }}>
+                                {entry.user?.name?.charAt(0) || 'U'}
+                              </Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                  <Typography
+                                    sx={{ display: 'inline', fontWeight: 'bold', mr: 1 }}
+                                  >
+                                    {entry.user?.name || 'Utilisateur inconnu'}
+                                  </Typography>
+                                  <Chip label={entry.status} size="small" color="success" />
+                                </Box>
+                              }
+                              secondary={
+                                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.primary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
+                                    Matricule: {entry.user?.matricule || 'N/A'}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.primary"
+                                    sx={{ display: 'block', mb: 0.5 }}
+                                  >
+                                    Poste: {entry.user?.poste || 'N/A'}
+                                  </Typography>
+                                  <Typography
+                                    component="span"
+                                    variant="body2"
+                                    color="text.secondary"
+                                  >
+                                    {entry.formattedDate}
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                          </ListItem>
+                          {index < enrichedValidationHistory.length - 1 && <Divider variant="inset" component="li" />}
+                        </React.Fragment>
+                      ))}
+                    </List>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        Aucun historique de validation finale pour le moment.
+                      </Typography>
+                    </Box>
+                  )}
+                </DialogContent>
+                <DialogActions>
+                  <Button onClick={handleCloseHistoryModal} color="primary">
+                    Fermer
+                  </Button>
+                </DialogActions>
+              </Dialog>
+            </>
+          )}
+        </Box>
+
+        <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
+          <Alert onClose={handleCloseSnackbar} severity="error" sx={{ width: '100%' }}>
+            {errorMessage}
+          </Alert>
+        </Snackbar>
+      </Paper>
     </>
   );
 }

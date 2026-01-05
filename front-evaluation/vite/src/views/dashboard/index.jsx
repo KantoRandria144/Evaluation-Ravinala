@@ -30,6 +30,7 @@ const Dashboard = () => {
   const userType = user.typeUser;
 
   useEffect(() => {
+
     setLoading(false);
   }, []);
 

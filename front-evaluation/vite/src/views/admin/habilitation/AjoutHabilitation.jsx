@@ -17,6 +17,7 @@ import {
 import { authInstance } from '../../../axiosConfig';
 import MainCard from 'ui-component/cards/MainCard';
 import { useNavigate } from 'react-router-dom';
+import AuditService from '../../../services/AuditService';
 
 const AjoutHabilitation = () => {
   const [specs, setSpecs] = useState([]);
@@ -24,10 +25,17 @@ const AjoutHabilitation = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [errors, setErrors] = useState({}); // Gestion des erreurs personnalisées
   const navigate = useNavigate();
-
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
   const fetchSpecs = async () => {
     try {
       const response = await authInstance.get('/Habilitation/admins');
+      // await AuditService.logAction(
+      //   userId,
+      //   'Consultation de la liste des habilitations administratives',
+      //   'Habilitation',
+      //   null
+      // );
       setSpecs(response.data);
     } catch (err) {
       console.error('Erreur lors de la récupération des specs');
@@ -86,6 +94,14 @@ const AjoutHabilitation = () => {
       console.log("Objet envoyé à l'API:", newSpec);
 
       const response = await authInstance.post('/Habilitation', newSpec);
+      await AuditService.logAction(
+        userId,
+        "Ajout d'une nouvelle habilitation",
+        "Habilitation",
+        response.data?.id?.toString() || null,   
+        null,                                    
+        newSpec
+      );
       setSpecs((prevSpecs) => [...prevSpecs, response.data]);
       setNewLabel(''); // Réinitialiser le champ après la soumission
       setSelectedIds([]); // Réinitialiser les IDs sélectionnés

@@ -530,11 +530,11 @@ const StatDepartement = ({ phase = 'Évaluation Finale' }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDepartments, setSelectedDepartments] = useState([]); // For selected departments
-
   // Fonction pour récupérer les données depuis l'API avec les paramètres
   const fetchData = async () => {
     try {
       const response = await formulaireInstance.get(`/Stat/averageScoresByYearAndDepartment/${phase}`);
+
       console.log(response.data);
       setData(response.data);
       setLoading(false);

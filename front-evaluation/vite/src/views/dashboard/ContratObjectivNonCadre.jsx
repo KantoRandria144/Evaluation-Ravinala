@@ -27,7 +27,7 @@ function ScoreChart({ userId, phase }) {
         setChartData({ xData, yData });
         setLoading(false);
       } catch (err) {
-        setError('Erreur lors du chargement des données.');  
+        setError('Aucune donnée à afficher');
         setLoading(false);
       }
     };

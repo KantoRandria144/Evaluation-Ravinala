@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using UserService.Data;
+using UserService.Service;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
+builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Connection to SQL Server
 builder.Services.AddDbContext<AppdbContext>(options =>

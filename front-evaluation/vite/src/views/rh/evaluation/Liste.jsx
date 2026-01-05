@@ -27,6 +27,7 @@ import { faEdit } from '@fortawesome/free-solid-svg-icons';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import { useNavigate } from 'react-router-dom';
 import MainCard from 'ui-component/cards/MainCard';
+import AuditService from '../../../services/AuditService';
 
 const Liste = ({ isDataUpdated }) => {
   const creer = 1;
@@ -58,13 +59,11 @@ const Liste = ({ isDataUpdated }) => {
   const HABILITATION_EDIT = 13;
 
   const navigate = useNavigate();
-
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
   // Vérifier les habilitations
   const checkPermissions = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const userId = user.id;
-
       const addResponse = await formulaireInstance.get(
         `/Periode/test-authorization?userId=${userId}&requiredHabilitationAdminId=${HABILITATION_ADD}`
       );
@@ -86,6 +85,7 @@ const Liste = ({ isDataUpdated }) => {
     try {
       const response = await formulaireInstance.get('/Periode/AllEvaluation');
       setEvaluations(response.data);
+      
     } catch (err) {
       const errorData = err.response?.data;
       setError(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : 'Erreur lors de la récupération des évaluations.');
@@ -141,7 +141,8 @@ const Liste = ({ isDataUpdated }) => {
       final: evaluation.final.split('T')[0],
       templateId: evaluation.templateId,
       titre: evaluation.titre,
-      type: evaluation.type
+      type: evaluation.type,
+      classes: evaluation.classes || '' 
     });
   };
 
@@ -152,8 +153,20 @@ const Liste = ({ isDataUpdated }) => {
 
   const handleSaveClick = async (evalId) => {
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const userId = user.id;
+      
+      const currentEvaluation = evaluations.find((evaluation) => evaluation.evalId === evalId);
+      const oldValues = currentEvaluation
+        ? {
+            titre: currentEvaluation.titre,
+            evalAnnee: currentEvaluation.evalAnnee,
+            fixationObjectif: currentEvaluation.fixationObjectif.split('T')[0],
+            miParcours: currentEvaluation.miParcours.split('T')[0],
+            final: currentEvaluation.final.split('T')[0],
+            templateId: currentEvaluation.templateId,
+            type: currentEvaluation.type,
+            classes: currentEvaluation.classes, // Ajouter classes ici
+          }
+        : null;
 
       await formulaireInstance.put(`Periode/edit/${evalId}?userId=${userId}`, {
         titre: editableEvaluation.titre,
@@ -162,14 +175,30 @@ const Liste = ({ isDataUpdated }) => {
         miParcours: editableEvaluation.miParcours,
         final: editableEvaluation.final,
         templateId: editableEvaluation.templateId,
-        type: editableEvaluation.type
+        type: editableEvaluation.type,
+        classes: editableEvaluation.classes, 
       });
+
+      await AuditService.logAction(
+        userId,
+        `Modification de la période d'évaluation avec evalId: ${evalId}`,
+        'Update',
+        null,
+        oldValues,
+        { ...editableEvaluation }
+      );
+
       fetchEvaluations();
       setEditingEvaluationId(null);
+      setError(null);
     } catch (error) {
       console.error('Error saving evaluation:', error);
       const errorData = error.response?.data;
-      setError(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : "Erreur lors de la sauvegarde de l'évaluation.");
+      setError(
+        typeof errorData === 'object'
+          ? JSON.stringify(errorData, null, 2)
+          : "Erreur lors de la sauvegarde de l'évaluation."
+      );
     }
   };
 
@@ -181,43 +210,99 @@ const Liste = ({ isDataUpdated }) => {
   // --- Fonctions d'action sur l'évaluation
   const debuterEvaluation = async (evalId) => {
     try {
+
       await formulaireInstance.put(`/Evaluation/start/${evalId}`);
+
+      // Log the new state (etatId changes to en_cours, which is 2)
+      const newValues = {
+        evalId,
+        etatId: en_cours,
+        etatDesignation: 'En cours',
+      };
+
+      await AuditService.logAction(
+        userId,
+        `Démarrage de la période d'évaluation avec evalId: ${evalId}`,
+        'Update',
+        null,
+        null,
+        newValues
+      );
+
       fetchEvaluations();
       setError(null);
     } catch (error) {
-      const errorMessage = error.response?.data?.message 
-        ? error.response.data.message 
+      const errorMessage = error.response?.data?.message
+        ? error.response.data.message
         : "Erreur lors du démarrage de l'évaluation.";
-
       setError(errorMessage);
     }
   };
 
   const cloturerEvaluation = async (evalId) => {
     try {
+
       await formulaireInstance.put(`/Periode/cloturer/${evalId}`);
+
+      // Log the new state (etatId changes to cloturer, which is 3)
+      const newValues = {
+        evalId,
+        etatId: cloturer,
+        etatDesignation: 'Clôturé',
+      };
+
+      await AuditService.logAction(
+        userId,
+        `Clôture de la période d'évaluation avec evalId: ${evalId}`,
+        'Update',
+        null,
+        null,
+        newValues
+      );
+
       fetchEvaluations();
+      setError(null);
     } catch (error) {
       const errorData = error.response?.data;
-      setError(typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : "Erreur lors de la clôture de l'évaluation.");
+      setError(
+        typeof errorData === 'object'
+          ? JSON.stringify(errorData, null, 2)
+          : "Erreur lors de la clôture de l'évaluation."
+      );
     }
   };
 
   const annulerCloturation = async (evalId) => {
-  try {
-    await formulaireInstance.put(`/Periode/annuler-cloturation/${evalId}`);
-    fetchEvaluations(); // Mise à jour de la liste
-    setError(null);
-  } catch (error) {
-    console.error("Erreur complète :", error); // log complet dans la console
+    try {
 
-  const errorMessage =
-    error?.response?.data?.message ||
-    JSON.stringify(error?.response?.data || error.message || error.toString());
+      await formulaireInstance.put(`/Periode/annuler-cloturation/${evalId}`);
 
-  setError(errorMessage);
-  }
-};
+      // Log the new state (etatId changes to en_cours, which is 2)
+      const newValues = {
+        evalId,
+        etatId: en_cours,
+        etatDesignation: 'En cours',
+      };
+
+      await AuditService.logAction(
+        userId,
+        `Annulation de la clôture de la période d'évaluation avec evalId: ${evalId}`,
+        'Update',
+        null,
+        null,
+        newValues
+      );
+
+      fetchEvaluations();
+      setError(null);
+    } catch (error) {
+      console.error("Erreur complète :", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        JSON.stringify(error?.response?.data || error.message || error.toString());
+      setError(errorMessage);
+    }
+  };
 
 
   const handleAddClick = () => {
@@ -296,8 +381,9 @@ const Liste = ({ isDataUpdated }) => {
               <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
                 Titre
               </TableCell>
+              
               <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
-                Classe
+                Type
               </TableCell>
               <TableCell sx={{ fontWeight: 'bold', fontSize: '0.75rem', padding: '12px', borderRight: '1px solid #e0e0e0' }}>
                 Fixation des objectifs
@@ -329,22 +415,61 @@ const Liste = ({ isDataUpdated }) => {
                   <>
                     {/* --- Mode édition --- */}
                     <TableCell>
-                      <input type="text" name="evalAnnee" value={editableEvaluation.evalAnnee} onChange={handleInputChange} />
-                    </TableCell>
-                    {/* On n'affiche plus le type, juste le titre.
-                        (On peut laisser un <select> pour le type si on veut l'éditer en interne,
-                         ou le retirer totalement si on ne veut plus gérer le type.) */}
-                    <TableCell>
-                      <input type="text" name="titre" value={editableEvaluation.titre} onChange={handleInputChange} placeholder="Titre" />
-                    </TableCell>
-                    <TableCell>
-                      <input type="date" name="fixationObjectif" value={editableEvaluation.fixationObjectif} onChange={handleInputChange} />
+                      <TextField
+                        size="small"
+                        name="evalAnnee"
+                        value={editableEvaluation.evalAnnee}
+                        onChange={handleInputChange}
+                      />
                     </TableCell>
                     <TableCell>
-                      <input type="date" name="miParcours" value={editableEvaluation.miParcours} onChange={handleInputChange} />
+                      <TextField
+                        size="small"
+                        name="titre"
+                        value={editableEvaluation.titre}
+                        onChange={handleInputChange}
+                        placeholder="Titre"
+                      />
+                    </TableCell>
+                    
+                    <TableCell>
+                      <FormControl size="small" fullWidth>
+                        <Select
+                          name="type"
+                          value={editableEvaluation.type || ''}
+                          onChange={handleInputChange}
+                        >
+                          <MenuItem value="Cadre">Cadre</MenuItem>
+                          <MenuItem value="NonCadre">Non-Cadre</MenuItem>
+                        </Select>
+                      </FormControl>
                     </TableCell>
                     <TableCell>
-                      <input type="date" name="final" value={editableEvaluation.final} onChange={handleInputChange} />
+                      <TextField
+                        size="small"
+                        type="date"
+                        name="fixationObjectif"
+                        value={editableEvaluation.fixationObjectif}
+                        onChange={handleInputChange}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="date"
+                        name="miParcours"
+                        value={editableEvaluation.miParcours}
+                        onChange={handleInputChange}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="date"
+                        name="final"
+                        value={editableEvaluation.final}
+                        onChange={handleInputChange}
+                      />
                     </TableCell>
                     <TableCell>{evaluation.etatDesignation || 'N/A'}</TableCell>
                     {/* Boutons Sauvegarder / Annuler */}
@@ -391,11 +516,6 @@ const Liste = ({ isDataUpdated }) => {
                               Clôturer
                             </Button>
                           )}
-                          {/* {evaluation.etatId === cloturer && (
-                            <Button variant="outlined" color="secondary" disabled>
-                              Clôturer
-                            </Button>
-                          )} */}
                           {evaluation.etatId === cloturer && (
                             <Button variant="outlined" color="error" onClick={() => annulerCloturation(evaluation.evalId)}>
                               Annuler la clôture
@@ -405,15 +525,20 @@ const Liste = ({ isDataUpdated }) => {
 
                         <TableCell>
                           <Tooltip title="Éditer">
-                            <IconButton onClick={() => handleEditClick(evaluation)} disabled={evaluation.etatId === cloturer}>
-                              <FontAwesomeIcon
-                                icon={faEdit}
-                                style={{
-                                  color: evaluation.etatId === cloturer ? 'gray' : 'blue',
-                                  fontSize: '1rem'
-                                }}
-                              />
-                            </IconButton>
+                            <span> {/* Correction: wrapper span pour IconButton désactivé */}
+                              <IconButton 
+                                onClick={() => handleEditClick(evaluation)} 
+                                disabled={evaluation.etatId === cloturer}
+                              >
+                                <FontAwesomeIcon
+                                  icon={faEdit}
+                                  style={{
+                                    color: evaluation.etatId === cloturer ? 'gray' : 'blue',
+                                    fontSize: '1rem'
+                                  }}
+                                />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                         </TableCell>
                       </>
@@ -436,7 +561,6 @@ const Liste = ({ isDataUpdated }) => {
         page={currentPage}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-        // ...
       />
     </Paper>
   );

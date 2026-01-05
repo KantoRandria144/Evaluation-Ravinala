@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import CollabNMp from './CollabNMp';
 import CollabNFi from './CollabNFi';
 import HelpIcon from '@mui/icons-material/Help';
+import AuditService from '../../../../services/AuditService';
 
 function CollabNFo() {
   const user = JSON.parse(localStorage.getItem('user'));
@@ -43,7 +44,7 @@ function CollabNFo() {
   const [signatureFile, setSignatureFile] = useState(null);
   const [openSignatureModal, setOpenSignatureModal] = useState(false);
   const [openNoSignatureModal, setOpenNoSignatureModal] = useState(false);
-  const [hasUserData, setHasUserData] = useState(false); // Pour savoir si on a déjà des données validées
+  const [hasUserData, setHasUserData] = useState(false);
   const [isValidate, setIsValidate] = useState(false);
   const [hasOngoingEvaluation, setHasOngoingEvaluation] = useState(false);
   const [openSignatureRecommendationModal, setOpenSignatureRecommendationModal] = useState(false);
@@ -76,9 +77,9 @@ function CollabNFo() {
   const checkUserSignature = async (userId) => {
     try {
       const response = await authInstance.get(`/Signature/get-user-signature/${userId}`);
-      return !!response.data.signature; // Renvoie `true` si une signature est trouvée
+      return !!response.data.signature;
     } catch (error) {
-      return false; // Renvoie `false` si la signature est absente ou en cas d'erreur
+      return false;
     }
   };
 
@@ -101,7 +102,6 @@ function CollabNFo() {
       const { indicators: fetchedIndicators } = response.data;
       setIndicators(fetchedIndicators);
 
-      // Initialisation des résultats vides
       const initialResults = fetchedIndicators.map((indicator) => ({
         indicatorId: indicator.indicatorId,
         userIndicatorId: 0,
@@ -144,7 +144,7 @@ function CollabNFo() {
 
       const userIndicators = userIndicatorsResponse.data;
       if (userIndicators && userIndicators.length > 0) {
-        setHasUserData(true); // On a des données utilisateur, donc on passera en mode "Mettre à jour"
+        setHasUserData(true);
 
         const filledResults = indicators.map((indicator) => {
           const userIndicator = userIndicators.find((ui) => ui.indicatorId === indicator.indicatorId);
@@ -160,7 +160,6 @@ function CollabNFo() {
               }))
             };
           } else {
-            // Si un indicateur n'est pas trouvé côté utilisateur, on garde les valeurs par défaut
             return {
               indicatorId: indicator.indicatorId,
               userIndicatorId: 0,
@@ -177,9 +176,7 @@ function CollabNFo() {
         setResults(filledResults);
       }
     } catch (err) {
-      // Aucune donnée => on reste en mode "Valider"
       if (err.response && err.response.status === 404) {
-        // Pas de données pré-existantes
       } else {
         console.error('Erreur lors de la récupération des indicateurs utilisateur:', err);
       }
@@ -223,10 +220,7 @@ function CollabNFo() {
         const tempId = response.data.templateId;
         setTemplateId(tempId);
 
-        // Charger les détails du template
         await fetchDetailedTemplate(tempId);
-
-        // Charger la période actuelle
         await fetchCurrentPeriod();
       } catch (error) {
         setErrorMessage(error.message);
@@ -336,7 +330,6 @@ function CollabNFo() {
         }))
       }));
 
-      // Vérification signature seulement si un fichier est fourni
       if (signatureFile) {
         const hasSignature = await checkUserSignature(userId);
         if (!hasSignature) {
@@ -346,7 +339,6 @@ function CollabNFo() {
 
         const base64Signature = await convertFileToBase64(signatureFile);
 
-        // Vérification signature
         const compareResponse = await authInstance.post(`/Signature/compare-user-signature/${userId}`, {
           ImageBase64: base64Signature
         });
@@ -358,13 +350,22 @@ function CollabNFo() {
         }
       }
 
-      // Appel à l'API (POST)
       const response = await formulaireInstance.post('/Evaluation/ValidateIndicator', formattedData, {
         params: {
           userId: userId,
           type: userType
         }
       });
+
+      // Add audit logging
+      await AuditService.logAction(
+        userId,
+        `Validation des indicateurs pour l'utilisateur avec userId: ${userId}`,
+        'Create',
+        null,
+        null,
+        { indicators: formattedData }
+      );
 
       alert(response.data.message || 'Objectifs validés avec succès !');
       window.location.reload();
@@ -390,7 +391,24 @@ function CollabNFo() {
         }))
       }));
 
-      // Vérification signature seulement si un fichier est fourni
+      // Fetch current indicators for oldValues
+      const currentIndicatorsResponse = await formulaireInstance.get('/Evaluation/IndicatorValidateByUser', {
+        params: {
+          userId: userId,
+          type: userType
+        }
+      });
+
+      const oldValues = currentIndicatorsResponse.data.map((indicator) => ({
+        userIndicatorId: indicator.userIndicatorId,
+        name: indicator.name,
+        results: indicator.results.map((res) => ({
+          resultId: res.resultId,
+          resultText: res.resultText,
+          result: res.result
+        }))
+      }));
+
       if (signatureFile) {
         const hasSignature = await checkUserSignature(userId);
         if (!hasSignature) {
@@ -400,7 +418,6 @@ function CollabNFo() {
 
         const base64Signature = await convertFileToBase64(signatureFile);
 
-        // Vérification signature
         const compareResponse = await authInstance.post(`/Signature/compare-user-signature/${userId}`, {
           ImageBase64: base64Signature
         });
@@ -412,13 +429,22 @@ function CollabNFo() {
         }
       }
 
-      // Appel à l'API (PUT)
       const response = await formulaireInstance.put('/Evaluation/UpdateIndicator', formattedData, {
         params: {
           userId: userId,
           type: userType
         }
       });
+
+      // Add audit logging
+      await AuditService.logAction(
+        userId,
+        `Mise à jour des indicateurs pour l'utilisateur avec userId: ${userId}`,
+        'Update',
+        null,
+        { indicators: oldValues },
+        { indicators: formattedData }
+      );
 
       alert(response.data.message || 'Objectifs mis à jour avec succès !');
       window.location.reload();
@@ -666,8 +692,7 @@ function CollabNFo() {
               )}
             </Box>
 
-            {/* Modal pour la signature */}
-            {/* <Dialog open={openSignatureModal} onClose={handleCloseSignatureModal}>
+            <Dialog open={openSignatureModal} onClose={handleCloseSignatureModal}>
               <DialogTitle>Signature (Optionnelle)</DialogTitle>
               <DialogContent>
                 <input type="file" accept="image/*" onChange={handleSignatureFileChange} />
@@ -692,8 +717,9 @@ function CollabNFo() {
                   Confirmer
                 </Button>
               </DialogActions>
-            </Dialog> */}
-            {/* <Dialog open={openNoSignatureModal} onClose={() => setOpenNoSignatureModal(false)}>
+            </Dialog>
+
+            <Dialog open={openNoSignatureModal} onClose={() => setOpenNoSignatureModal(false)}>
               <DialogTitle>Signature manquante</DialogTitle>
               <DialogContent>
                 <Typography variant="body1">
@@ -718,8 +744,8 @@ function CollabNFo() {
                   Fermer
                 </Button>
               </DialogActions>
-            </Dialog> */}
-            {/* Modal de recommandation */}
+            </Dialog>
+
             <Dialog
               open={openSignatureRecommendationModal}
               onClose={handleContinueWithoutSignature}
@@ -815,7 +841,6 @@ function CollabNFo() {
             </>
           )}
 
-          {/* Contenu par défaut si aucune période ne correspond */}
           {!['Fixation Objectif', 'Mi-Parcours', 'Évaluation Finale'].includes(currentPeriod) && (
             <Typography variant="body1" gutterBottom>
               Voici quelques informations pour vous aider à utiliser cette section :
@@ -829,10 +854,7 @@ function CollabNFo() {
         </DialogActions>
       </Dialog>
 
-      {/* Période Mi-Parcours */}
       {currentPeriod === 'Mi-Parcours' && <CollabNMp />}
-
-      {/* Période Évaluation Finale */}
       {currentPeriod === 'Évaluation Finale' && <CollabNFi />}
     </Paper>
   );

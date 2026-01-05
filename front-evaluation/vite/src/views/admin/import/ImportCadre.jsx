@@ -5,6 +5,7 @@ import { formulaireInstance } from '../../../axiosConfig';
 import { Grid, Typography, Button, Box, Alert, TextField } from '@mui/material';
 
 import { useDropzone } from 'react-dropzone';
+import AuditService from '../../../services/AuditService';
 
 function ImportCadre() {
   const [evaluationFile, setEvaluationFile] = useState(null);
@@ -17,6 +18,8 @@ function ImportCadre() {
   const [severity, setSeverity] = useState('success');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
 
   useEffect(() => {
     setMessage('');
@@ -85,6 +88,7 @@ function ImportCadre() {
   const handleCheckImportStatus = async () => {
     try {
       const res = await formulaireInstance.get(`/Import/import-status?annee=${annee}`);
+
       setImportStatus(res.data);
     } catch (error) {
       console.error("Erreur lors de la récupération du statut d'importation.");
@@ -92,7 +96,7 @@ function ImportCadre() {
     }
   };
 
-  const handleSubmit = async (event) => {
+const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSubmitted(true);
 
@@ -117,6 +121,23 @@ function ImportCadre() {
       const response = await formulaireInstance.post('/Import/import-evaluation', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+
+      await AuditService.logAction(
+        userId,
+        'Importation des fichiers d\'évaluation cadre',
+        'Import',
+        null,
+        null,
+        {
+          annee,
+          files: {
+            evaluation: evaluationFile?.name || null,
+            fixation: fixationFile?.name || null,
+            miParcours: miParcoursFile?.name || null,
+            finale: finaleFile?.name || null
+          }
+        }
+      );
 
       if (response.status === 200) {
         setMessage('Données importées avec succès.');
@@ -151,10 +172,11 @@ function ImportCadre() {
     }
   };
 
+
   return (
     <Box sx={{ mx: 'auto', maxWidth: '800px', padding: '20px' }}>
       <Typography variant="h5" gutterBottom>
-        Importation par étape
+        Importation des Fichiers Cadres
       </Typography>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>

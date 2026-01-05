@@ -1172,8 +1172,23 @@ namespace UserService.Controllers
                     throw new ArgumentException("Superior ID must be provided.");
                 }
 
-                // Utiliser Entity Framework ou une autre méthode d'accès aux données pour interroger la base de données
-                var users = await _context.Users.Where(u => u.SuperiorId == superiorId).Select(u => new UserDTO
+                var allSubordinates = await GetAllSubordinatesRecursive(superiorId);
+
+                return allSubordinates;
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                Console.WriteLine($"An error occurred: {ex.Message}");
+                throw;
+            }
+        }
+
+        private async Task<List<UserDTO>> GetAllSubordinatesRecursive(string superiorId)
+        {
+            var directSubordinates = await _context.Users
+                .Where(u => u.SuperiorId == superiorId)
+                .Select(u => new UserDTO
                 {
                     Id = u.Id,
                     Matricule = u.Matricule,
@@ -1192,14 +1207,16 @@ namespace UserService.Controllers
                     }).ToList()
                 }).ToListAsync();
 
-                return users;
-            }
-            catch (Exception ex)
+            var allSubordinates = new List<UserDTO>(directSubordinates);
+
+            // Récursion pour chaque subordonné direct
+            foreach (var subordinate in directSubordinates)
             {
-                // Log the error
-                Console.WriteLine($"An error occurred: {ex.Message}");
-                throw;
+                var children = await GetAllSubordinatesRecursive(subordinate.Id);
+                allSubordinates.AddRange(children);
             }
+
+            return allSubordinates;
         }
 
         // ACTUALIZE
@@ -1238,6 +1255,7 @@ namespace UserService.Controllers
                         usersToAdd.Add(new User
                         {
                             Id = adUser.Id,
+                            Matricule = adUser.Matricule,
                             Name = adUser.DisplayName,
                             Email = adUser.Email,
                             Department = adUser.Department,
@@ -1274,6 +1292,7 @@ namespace UserService.Controllers
                             dbUser.Department != depart || dbUser.Poste != aduser?.Title ||
                             dbUser.SuperiorId != superiorId || dbUser.SuperiorName != superiorName)
                         {
+                            dbUser.Matricule = aduser.Matricule;
                             dbUser.Name = aduser?.DisplayName;
                             dbUser.Email = aduser?.Email;
                             dbUser.Department = depart;

@@ -14,14 +14,13 @@ const evaluation = {
   type: 'group',
   children: [
     {
-      id: 'authentication',
+      id: 'evaluation-formulaire',  
       title: 'Formulaire',
       type: 'collapse',
       icon: icons.IconFile,
-
       children: [
         {
-          id: 'Cadre',
+          id: 'formulaireCadre', 
           title: 'Cadre',
           type: 'item',
           url: '/formulaireCadre/home',
@@ -30,7 +29,7 @@ const evaluation = {
           breadcrumbs: false
         },
         {
-          id: 'NonCadre',
+          id: 'formulaireNonCadre', 
           title: 'Non Cadre',
           type: 'item',
           url: '/formulaireNonCadre/home',
@@ -40,7 +39,6 @@ const evaluation = {
         }
       ]
     },
-
     {
       id: 'listeEvaluation',
       title: 'Période',
@@ -50,7 +48,6 @@ const evaluation = {
       icon: icons.IconCalendarEvent,
       breadcrumbs: false
     },
-
     {
       id: 'remplissageCadre',
       title: 'Cadre',
@@ -60,7 +57,6 @@ const evaluation = {
       icon: icons.IconTargetArrow,
       breadcrumbs: false
     },
-
     {
       id: 'remplissageNonCadre',
       title: 'Non Cadre',
@@ -69,7 +65,7 @@ const evaluation = {
       requiredHabilitation: 19,
       icon: icons.IconTargetArrow,
       breadcrumbs: false
-    },
+    }
   ]
 };
 

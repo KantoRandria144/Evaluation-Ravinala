@@ -24,6 +24,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import MainCard from 'ui-component/cards/MainCard';
 import { Link } from 'react-router-dom';
 import { authInstance } from '../../../../axiosConfig';
+import AuditService from '../../../../services/AuditService';
 
 const ListeCadre = () => {
   const [openRow, setOpenRow] = useState(null);
@@ -34,6 +35,8 @@ const ListeCadre = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+  const userId = user.id;
 
   useEffect(() => {
     fetchInitialUsers(); // Load initial unfiltered cadre users on component mount
@@ -44,6 +47,13 @@ const ListeCadre = () => {
     try {
       const response = await authInstance.get('/User/users-cadre');
       setEmployees(response.data);
+      await AuditService.logAction(
+        userId,
+        'Consulation de la liste initiale des utilisateurs cadres',
+        'Fetch',
+        null
+      );
+
     } catch (error) {
       console.error('Error fetching initial cadre users:', error);
     }
@@ -60,6 +70,14 @@ const ListeCadre = () => {
       });
       setEmployees(response.data);
       setCurrentPage(1); // Reset to first page after filtering
+
+      await AuditService.logAction(
+        userId,
+        'Consultation des utilisateurs cadres avec filtres',
+        'Fetch',
+        null
+      );
+
     } catch (error) {
       console.error('Error fetching filtered cadre users:', error);
     }
@@ -97,6 +115,12 @@ const ListeCadre = () => {
   };
 
   const handleAddClick = (userId) => {
+    AuditService.logAction(
+      userId,
+      'Navigation vers la page d\'assignation d\'habilitations pour un utilisateur',
+      'Navigate',
+       userId
+    );
     navigate(`/utilisateur/assignation/${userId}`);
   };
 

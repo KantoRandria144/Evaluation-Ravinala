@@ -1,3 +1,4 @@
+
 CREATE  TABLE Etats ( 
 	EtatId               int    IDENTITY  NOT NULL,
 	EtatDesignation      nvarchar(max)      NOT NULL,
@@ -57,6 +58,8 @@ CREATE  TABLE Indicators (
  );
 GO
 
+
+
 CREATE NONCLUSTERED INDEX IX_Indicators_TemplateId ON Indicators ( TemplateId  asc );
 GO
 
@@ -95,15 +98,18 @@ CREATE  TABLE Sections (
  );
 GO
 
-CREATE  TABLE TemplateStrategicPriorities ( 
-	TemplatePriorityId   int    IDENTITY  NOT NULL,
-	Name                 nvarchar(max)      NOT NULL,
-	MaxObjectives        int      NOT NULL,
-	TemplateId           int      NOT NULL,
-	IsActif              bit      NOT NULL,
-	CONSTRAINT PK_TemplateStrategicPriorities PRIMARY KEY CLUSTERED ( TemplatePriorityId  asc ) 
- );
+CREATE TABLE TemplateStrategicPriorities ( 
+    TemplatePriorityId   int    IDENTITY NOT NULL,
+    Name                 nvarchar(max)   NOT NULL,
+    MaxObjectives        int             NOT NULL,
+    TemplateId           int             NOT NULL,
+    IsActif              bit             NOT NULL,
+    Ponderation          decimal(15,2)   NULL,
+    CONSTRAINT PK_TemplateStrategicPriorities 
+        PRIMARY KEY CLUSTERED ( TemplatePriorityId ASC ) 
+);
 GO
+
 
 CREATE NONCLUSTERED INDEX IX_TemplateStrategicPriorities_TemplateId ON TemplateStrategicPriorities ( TemplateId  asc );
 GO
@@ -123,7 +129,7 @@ GO
 CREATE  TABLE Users ( 
 	Id                   nvarchar(450)      NOT NULL,
 	Matricule            nvarchar(max)      NOT NULL,
-	Name                 nvarchar(max)      NOT NULL,
+	Name                 nvarchar(max)      NULL,
 	Email                nvarchar(max)      NOT NULL,
 	Poste                nvarchar(max)      NULL,
 	Department           nvarchar(max)      NULL,
@@ -484,6 +490,19 @@ CREATE  TABLE UserIndicatorResults (
  );
 GO
 
+	CREATE TABLE AuditLogs (
+		Id INT IDENTITY(1,1) PRIMARY KEY,
+		UserId NVARCHAR(255) NOT NULL,
+		Action NVARCHAR(100) NOT NULL,   
+		TableName NVARCHAR(255) NULL,   
+		RecordId NVARCHAR(100) NULL,    
+		OldValues NVARCHAR(MAX) NULL,   
+		NewValues NVARCHAR(MAX) NULL,   
+		Timestamp DATETIME2 NOT NULL DEFAULT SYSDATETIME()
+	);
+	GO
+
+
 CREATE NONCLUSTERED INDEX IX_UserIndicatorResults_UserIndicatorId ON UserIndicatorResults ( UserIndicatorId  asc );
 GO
 
@@ -752,6 +771,7 @@ INSERT INTO Sections( Id, Name ) VALUES ( 7, 'Gestion import');
 INSERT INTO Sections( Id, Name ) VALUES ( 8, 'Gestion export');
 INSERT INTO Sections( Id, Name ) VALUES ( 9, 'Gestion des habilitations');
 INSERT INTO Sections( Id, Name ) VALUES ( 10, 'Gestion des Dashbords');
+INSERT INTO Sections( Id, Name ) VALUES ( 11, 'Gestion Logs');
 SET IDENTITY_INSERT Sections OFF;
 
 SET IDENTITY_INSERT TemplateStrategicPriorities ON;
@@ -1057,25 +1077,27 @@ INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 10, 'M
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 11, 'Consulter les périodes d''évaluation', 4, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 12, 'Créer une nouvelle période d''évaluation', 4, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 13, 'Modifier une période d''évaluation', 4, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 14, 'Consulter les subordonnés', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 14, 'Consulter les collaborateurs', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 15, 'Remplir ses formulaires d''évaluation pour un cadre', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 16, 'Remplir les formulaires d''évaluation pour ses subordonnés cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 16, 'Remplir les formulaires d''évaluation pour ses collaborateurs cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 17, 'Consulter les formulaires en cours des collaborateurs cadres', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 18, 'Consulter les formulaires en cours des subordonnés cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 18, 'Consulter les formulaires en cours des collaborateurs cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 19, 'Remplir ses formulaires d''évaluation pour un non-cadre', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 20, 'Remplir les formulaires d''évaluation pour ses subordonnés non-cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 20, 'Remplir les formulaires d''évaluation pour ses collaborateurs non-cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 21, 'Consulter les formulaires en cours des collaborateurs non-cadres', 5, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 22, 'Consulter les formulaires en cours des subordonnés non-cadres', 5, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 22, 'Consulter les formulaires en cours des collaborateurs non-cadres', 5, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 23, 'Consulter ses archives personnelles', 6, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 24, 'Consulter les archives de tous les collaborateurs', 6, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 25, 'Modifier les fiches archivées de tous les collaborateurs', 6, 1);
-INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 26, 'Consulter les archives des subordonnés', 6, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 26, 'Consulter les archives des collaborateurs', 6, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 27, 'Importer les évaluations', 7, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 28, 'Exporter les évaluations', 8, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 29, 'Recevoir une notification au début et à la clôture d''une évaluation.', 9, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 30, 'Recevoir des notifications de validation pendant l''évaluation.', 9, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 31, 'Voir le tableau de bord en tant qu’administrateur.', 10, 1);
 INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 32, 'Voir le tableau de bord en tant que collaborateur.', 10, 1);
+INSERT INTO HabilitationAdmins( Id, Name, SectionId, IsGranted ) VALUES ( 33, 'Voir la liste des logs.', 11, 1);
+
 SET IDENTITY_INSERT HabilitationAdmins OFF;
 
 INSERT INTO HabilitationHabilitationAdmin( HabilitationAdminsId, HabilitationsId ) VALUES ( 1, 1);
@@ -1189,6 +1211,20 @@ INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'fbb54cbc-
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
 INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1001, 'fbb54cbc-17ca-4708-827d-33ddc9a8defd');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 3, 'ce796eb6-0f7e-4dbc-9c1e-de00f53de186');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 1, 'd6b6d0e3-d691-4cd3-bed4-da651a4aba9d');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 2, 'd6b6d0e3-d691-4cd3-bed4-da651a4aba9d');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 4, 'd6b6d0e3-d691-4cd3-bed4-da651a4aba9d');
+INSERT INTO UserHabilitations( HabilitationsId, UsersId ) VALUES ( 3, 'd6b6d0e3-d691-4cd3-bed4-da651a4aba9d');
+
+
+
+
+
+
 
 SET IDENTITY_INSERT UserObjectives ON;
 INSERT INTO UserObjectives( ObjectiveId, Description, Weighting, ResultIndicator, Result, UserEvalId, PriorityId, CreatedBy, CreatedAt ) VALUES ( 1, 'Test 1', 50, 'Indic', 0, 5, 1, 'db805c79-6ff8-45eb-97b2-f6825775f72f', '2025-07-04 09:50:46 AM');
@@ -1477,3 +1513,8 @@ INSERT INTO HistoryCMps( HcmId, UserEvalId, PriorityName, Description, Weighting
 INSERT INTO HistoryCMps( HcmId, UserEvalId, PriorityName, Description, Weighting, ResultIndicator, Result, ValidatedBy, UpdatedAt ) VALUES ( 1065, 2015, 'Responsabilité Sociétale d''Entreprise', 'Objectif 1- Partenariats stratégiques', 15, ' - 3 nouveaux partenaires stratégiques sur le volet RSE, et volet économique ', 50, null, '2025-07-22 02:39:15 PM');
 SET IDENTITY_INSERT HistoryCMps OFF;
 GO
+
+-- SET IDENTITY_INSERT Indicators
+-- INSERT INTO Indicators( IndicatorId, label,MaxResults,TemplateId,IsActive  ) VALUES ( 1, 'TEST', 3 ,2, true);
+
+
