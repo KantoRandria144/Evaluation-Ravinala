@@ -211,6 +211,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                     resultIndicator: obj.resultIndicator || '',
                     collaboratorResult: obj.collaboratorResult ?? obj.result ?? 0,
                     managerResult: obj.managerResult ?? '',
+                    managerComment: obj.managerComment ?? '',
                     result: obj.result ?? obj.collaboratorResult ?? 0,
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
@@ -538,6 +539,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
             weighting: parseFloat(objective.weighting) || 0,
             resultIndicator: objective.resultIndicator || '',
             result: parseFloat(objective.managerResult) || 0,
+            managerComment: objective.managerComment || '',
             objectiveColumnValues:
               objective.dynamicColumns?.map((col) => ({
                 columnName: col.columnName,
@@ -1040,6 +1042,26 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                                         disabled
                                       />
                                     </Grid>
+                                    <Grid item xs={12}>
+                                      <TextField
+                                        label="Commentaire du manager"
+                                        fullWidth
+                                        multiline
+                                        minRows={3}
+                                        value={objective.managerComment || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'managerComment',
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="Commentaire d’évaluation du manager"
+                                        disabled={isValidated || isManagerValidation}
+                                      />
+                                    </Grid>
+
 
                                     {Array.isArray(objective.dynamicColumns) &&
                                       objective.dynamicColumns.map((column, colIndex) => (
