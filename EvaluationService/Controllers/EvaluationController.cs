@@ -856,6 +856,7 @@ namespace EvaluationService.Controllers
                     // manager validation => écrit dans ManagerResult + Result officiel
                     userObjective.ManagerResult = modifiedObjective.Result;
                     userObjective.Result = modifiedObjective.Result;
+                    userObjective.ManagerComment = modifiedObjective.ManagerComment;
 
 
                     _context.UserObjectives.Update(userObjective);
@@ -3042,6 +3043,12 @@ namespace EvaluationService.Controllers
                         if (!string.IsNullOrEmpty(objectiveRequest.ResultIndicator))
                             existingObjective.ResultIndicator = objectiveRequest.ResultIndicator;
                         
+                        if (!string.IsNullOrEmpty(objectiveRequest.ManagerComment))
+                        {
+                            existingObjective.ManagerComment = objectiveRequest.ManagerComment;
+                        }
+
+                        
                         var updatedBy = (request.UpdatedBy ?? "").ToUpper();
                         var isManager = updatedBy == "MANAGER";
 
@@ -3249,6 +3256,7 @@ namespace EvaluationService.Controllers
             public string Type { get; set; } // "Cadre" ou "NonCadre"
             public string UpdatedBy { get; set; } // "COLLABORATOR" ou "MANAGER"
 
+
             
             // Pour les cadres
             public List<ObjectiveUpdateDto> Objectives { get; set; }
@@ -3264,6 +3272,7 @@ namespace EvaluationService.Controllers
             public decimal? Weighting { get; set; }
             public string ResultIndicator { get; set; }
             public decimal? Result { get; set; }
+            public string? ManagerComment { get; set; }
             
             // Propriété principale
             public List<ColumnValueUpdateDto> DynamicColumns { get; set; }
@@ -3338,6 +3347,8 @@ namespace EvaluationService.Controllers
             public int ObjectiveId { get; set; }
             public string indicatorName { get; set; }
             public string? Description { get; set; }
+            public string? ManagerComment { get; set; }
+
             public decimal? Weighting { get; set; }
             public string? ResultIndicator { get; set; }
             public decimal? Result { get; set; }
