@@ -27,20 +27,21 @@ const archive = {
       type: 'collapse',
       icon: icons.IconArchive,
       children: [
+        
         {
-          id: 'archiveCadre',
-          title: 'Cadre',
+          id: 'archiveNonCadre',  
+          title: 'C1 - C6', //Non Cadre
           type: 'item',
-          url: '/allEvaluation/cadre',
+          url: '/allEvaluation/nonCadre',
           requiredHabilitation: 24,
           target: false,
           breadcrumbs: false
         },
         {
-          id: 'archiveNonCadre',  
-          title: 'Non Cadre',
+          id: 'archiveCadre',
+          title: 'C7 - C13', //Cadre
           type: 'item',
-          url: '/allEvaluation/nonCadre',
+          url: '/allEvaluation/cadre',
           requiredHabilitation: 24,
           target: false,
           breadcrumbs: false

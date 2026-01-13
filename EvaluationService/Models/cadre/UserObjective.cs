@@ -19,6 +19,10 @@ namespace EvaluationService.Models
 
         [Required]
         public decimal? Result { get; set; } = 0;
+        public decimal? CollaboratorResult { get; set; }
+        public decimal? ManagerResult { get; set; }
+        public string? ManagerComment { get; set; }
+
 
         // Foreign keys
         public int UserEvalId { get; set; }

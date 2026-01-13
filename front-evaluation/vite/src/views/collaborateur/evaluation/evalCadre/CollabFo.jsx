@@ -345,32 +345,39 @@ function CollabFo() {
     }
   };
 
-  useEffect(() => {
-    const initData = async () => {
-      setIsLoading(true);
-      try {
-        await Promise.all([
-          fetchCadreTemplateId(),
-          checkOngoingEvaluation(),
-          checkIfValidated()
-        ]);
-        
-        // Récupérer la période actuelle et l'année
-        const periodResponse = await formulaireInstance.get('/Periode/periodeActel', { 
-          params: { type: 'Cadre' } 
-        });
-        if (periodResponse.data?.length > 0) {
-          setCurrentPeriod(periodResponse.data[0].currentPeriod);
-          setEvaluationYear(periodResponse.data[0].year || new Date().getFullYear().toString());
-        }
-      } catch (error) {
-        console.error('Erreur lors de l\'initialisation des données:', error);
-      } finally {
-        setIsLoading(false);
+useEffect(() => {
+  const initData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        fetchCadreTemplateId(),
+        checkOngoingEvaluation(),
+        checkIfValidated()
+      ]);
+      
+      //On récupère STRICTEMENT l'année de la période d'évaluation
+      const periodResponse = await formulaireInstance.get(
+        '/Periode/periodeActel',
+        { params: { type: 'Cadre' } }
+      );
+
+      if (periodResponse.data?.length > 0) {
+        setCurrentPeriod(periodResponse.data[0].currentPeriod);
+
+        //IMPORTANT :
+        // On affiche l'année de la période (ex: 2013),
+        // et NON l'année courante du système
+        setEvaluationYear(periodResponse.data[0].evalAnnee?.toString() ?? '');
       }
-    };
-    initData();
-  }, []);
+    } catch (error) {
+      console.error('Erreur lors de l\'initialisation des données:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  initData();
+}, []);
 
   useEffect(() => {
     if (templateId) {

@@ -299,7 +299,10 @@ namespace EvaluationService.Controllers
                     Description = obj.Description,
                     Weighting = obj.Weighting,
                     ResultIndicator = obj.ResultIndicator,
-                    Result = (decimal)obj.Result,
+                    CollaboratorResult = obj.CollaboratorResult,
+                    ManagerResult = obj.ManagerResult,
+                    ManagerComment = obj.ManagerComment,
+                    Result = obj.ManagerResult ?? obj.CollaboratorResult ?? 0,
                     TemplateStrategicPriority = new TemplateStrategicPriorityDto
                     {
                         TemplatePriorityId = obj.TemplateStrategicPriority.TemplatePriorityId,
@@ -357,6 +360,8 @@ namespace EvaluationService.Controllers
                         existingObjective.Weighting = updatedObjective.Weighting;
                         existingObjective.ResultIndicator = updatedObjective.ResultIndicator;
                         existingObjective.Result = updatedObjective.Result;
+                        existingObjective.ManagerComment = updatedObjective.ManagerComment;
+
 
                         // Mettre à jour les ObjectiveColumnValues
                         foreach (var column in allColumns)
@@ -848,7 +853,10 @@ namespace EvaluationService.Controllers
                     userObjective.Description = modifiedObjective.Description ?? userObjective.Description;
                     userObjective.Weighting = modifiedObjective.Weighting ?? userObjective.Weighting;
                     userObjective.ResultIndicator = modifiedObjective.ResultIndicator;
+                    // manager validation => écrit dans ManagerResult + Result officiel
+                    userObjective.ManagerResult = modifiedObjective.Result;
                     userObjective.Result = modifiedObjective.Result;
+
 
                     _context.UserObjectives.Update(userObjective);
 
@@ -1139,9 +1147,11 @@ namespace EvaluationService.Controllers
                     // Mettre à jour uniquement le champ Result
                     if (modifiedObjective.Result != null)
                     {
-                        userObjective.Result = modifiedObjective.Result;
+                        userObjective.ManagerResult = modifiedObjective.Result;
+                        userObjective.Result = modifiedObjective.Result; // officiel
                         _context.UserObjectives.Update(userObjective);
                     }
+
 
                     // Mettre à jour ou insérer les ObjectiveColumnValues
                     foreach (var modifiedColumn in modifiedObjective.ObjectiveColumnValues ?? new List<ColumnValueDto>())
@@ -3032,8 +3042,26 @@ namespace EvaluationService.Controllers
                         if (!string.IsNullOrEmpty(objectiveRequest.ResultIndicator))
                             existingObjective.ResultIndicator = objectiveRequest.ResultIndicator;
                         
+                        var updatedBy = (request.UpdatedBy ?? "").ToUpper();
+                        var isManager = updatedBy == "MANAGER";
+
                         if (objectiveRequest.Result.HasValue)
-                            existingObjective.Result = objectiveRequest.Result.Value;
+                        {
+                            if (isManager)
+                            {
+                                existingObjective.ManagerResult = objectiveRequest.Result.Value;
+                                existingObjective.Result = objectiveRequest.Result.Value; // valeur officielle
+                            }
+                            else
+                            {
+                                existingObjective.CollaboratorResult = objectiveRequest.Result.Value;
+
+                                // optionnel : si manager pas encore saisi, Result suit l’auto-éval
+                                if (existingObjective.ManagerResult == null)
+                                    existingObjective.Result = objectiveRequest.Result.Value;
+                            }
+                        }
+
 
                         // CORRECTION: Utiliser DynamicColumns au lieu de ColumnValues
                         // Mettre à jour les colonnes dynamiques
@@ -3219,6 +3247,8 @@ namespace EvaluationService.Controllers
         {
             public string UserId { get; set; }
             public string Type { get; set; } // "Cadre" ou "NonCadre"
+            public string UpdatedBy { get; set; } // "COLLABORATOR" ou "MANAGER"
+
             
             // Pour les cadres
             public List<ObjectiveUpdateDto> Objectives { get; set; }

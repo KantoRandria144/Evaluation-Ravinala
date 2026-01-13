@@ -209,7 +209,9 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                     description: obj.description || '',
                     weighting: obj.weighting || '',
                     resultIndicator: obj.resultIndicator || '',
-                    result: obj.result || '',
+                    collaboratorResult: obj.collaboratorResult ?? obj.result ?? 0,
+                    managerResult: obj.managerResult ?? '',
+                    result: obj.result ?? obj.collaboratorResult ?? 0,
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
                         columnName: col.columnName,
@@ -423,7 +425,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
     if (objectives.length === 0) return 0;
     
     const totalResult = objectives.reduce((sum, obj) => {
-      const result = parseFloat(obj.result) || 0;
+      const result = parseFloat(obj.managerResult ?? 0) || 0;
       const weighting = parseFloat(obj.weighting) || 0;
       return sum + (result * weighting / 100);
     }, 0);
@@ -471,7 +473,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
       const hasDynamicColumns = Array.isArray(objective.dynamicColumns);
       const isAnyDynamicColumnFilled = hasDynamicColumns ? objective.dynamicColumns.some((column) => column.value) : false;
 
-      if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result)) {
+      if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.managerResult )) {
         setErrorMessage(
           `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
         );
@@ -482,7 +484,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
       if (isObjectivePartiallyFilled) {
         isAnyObjectiveFilled = true;
 
-        if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result) {
+        if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.managerResult ) {
           setErrorMessage(
             `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
           );
@@ -535,7 +537,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
             description: objective.description || '',
             weighting: parseFloat(objective.weighting) || 0,
             resultIndicator: objective.resultIndicator || '',
-            result: parseFloat(objective.result) || 0,
+            result: parseFloat(objective.managerResult) || 0,
             objectiveColumnValues:
               objective.dynamicColumns?.map((col) => ({
                 columnName: col.columnName,
@@ -965,7 +967,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                                         disabled
                                       />
                                     </Grid>
-                                    <Grid item xs={12} sm={6}>
+                                    <Grid item xs={12}>
                                       <TextField
                                         label="Pondération"
                                         fullWidth
@@ -984,7 +986,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                                         fullWidth
                                         variant="outlined"
                                         type="text"
-                                        value={objective.result || ''}
+                                        value={objective.collaboratorResult ?? ''}
                                         onChange={(e) =>
                                           handleObjectiveChange(
                                             getActivePriority().name,
@@ -1003,6 +1005,28 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                                         }}
                                         disabled={isValidated || isManagerValidation}
                                       />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            label="Résultat final manager"
+                                            fullWidth
+                                            variant="outlined"
+                                            value={objective.managerResult ?? ''}
+                                            onChange={(e) =>
+                                              handleObjectiveChange(
+                                                getActivePriority().name,
+                                                objIndex,
+                                                'managerResult',
+                                                e.target.value
+                                              )
+                                            }
+                                            error={parseFloat(objective.managerResult) > 100}
+                                            helperText={parseFloat(objective.managerResult) > 100 ? 'Maximum 100%' : ''}
+                                            InputProps={{
+                                              endAdornment: <InputAdornment position="end">%</InputAdornment>
+                                            }}
+                                            disabled={isValidated}
+                                          />
                                     </Grid>
 
                                     <Grid item xs={12}>

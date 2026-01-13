@@ -125,6 +125,7 @@ function CollabMp() {
                   weighting: obj.weighting || '',
                   resultIndicator: obj.resultIndicator || '',
                   result: obj.result || '',
+                  managerComment: obj.managerComment ?? '',
                   dynamicColumns:
                     obj.objectiveColumnValues?.map((col) => ({
                       columnName: col.columnName,
@@ -206,6 +207,7 @@ function CollabMp() {
       const requestData = {
         userId: userId,
         type: "Cadre",
+        updatedBy: "COLLABORATOR",
         objectives: userObjectives.map(obj => {
           const resultValue = editedResults[obj.objectiveId];
           let parsedResult = 0;
@@ -642,6 +644,18 @@ function CollabMp() {
                               </Typography>
                             )}
                           </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '25%'
+                            }}
+                          >
+                            Commentaire du manager
+                          </TableCell>
+
                           {priority.objectives[0]?.dynamicColumns?.map((column, colIndex) => (
                             <TableCell
                               key={colIndex}
@@ -717,6 +731,26 @@ function CollabMp() {
                               >
                                 {renderResultCell(objective)}
                               </TableCell>
+                              <TableCell
+                                sx={{
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  py: 0.5,
+                                  width: '25%'
+                                }}
+                              >
+                                <TextField
+                                  fullWidth
+                                  multiline
+                                  minRows={2}
+                                  value={objective.managerComment || ''}
+                                  variant="outlined"
+                                  InputProps={{
+                                    readOnly: true
+                                  }}
+                                  placeholder="Aucun commentaire"
+                                />
+                              </TableCell>
+
                               {objective.dynamicColumns?.map((column, colIndex) => (
                                 <TableCell
                                   key={colIndex}

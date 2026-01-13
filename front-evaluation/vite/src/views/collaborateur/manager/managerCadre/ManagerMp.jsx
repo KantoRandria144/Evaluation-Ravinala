@@ -192,7 +192,9 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
                     description: obj.description || '',
                     weighting: obj.weighting || '',
                     resultIndicator: obj.resultIndicator || '',
-                    result: obj.result || '',
+                    collaboratorResult: obj.result ?? '',
+                    managerResult: obj.managerResult ?? '',
+                    managerComment: obj.managerComment ?? '',
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
                         columnName: col.columnName,
@@ -208,8 +210,11 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
             
             // Vérifier si le collaborateur a rempli ses résultats
             const hasResultsFilled = objectives.some(obj => 
-              obj.result !== null && obj.result !== undefined && obj.result !== ''
+              obj.collaboratorResult !== null &&
+              obj.collaboratorResult !== undefined &&
+              obj.collaboratorResult !== ''
             );
+
             setHasCollaboratorFilledResults(hasResultsFilled);
             
           } else {
@@ -230,7 +235,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
 
   const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
     // Si c'est déjà validé, ne pas permettre les modifications
-    if (isValidated) {
+    if (isValidated && field !== 'managerComment') {
       return;
     }
     
@@ -245,7 +250,9 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
             description: '',
             weighting: '',
             resultIndicator: '',
-            result: '',
+            collaboratorResult: '',
+            managerResult: '',
+            managerComment: '',
             dynamicColumns: []
           };
         }
@@ -267,7 +274,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
             value
           };
         } else {
-          if (field === 'weighting' || field === 'result') {
+          if (field === 'weighting' || field === 'result' || field === 'managerResult') {
             let parsedValue = value.replace(',', '.');
             if (!/^\d{0,3}(\.\d{0,2})?$/.test(parsedValue)) return priority;
             const numericValue = parseFloat(parsedValue);
@@ -399,7 +406,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
     if (objectives.length === 0) return 0;
     
     const totalResult = objectives.reduce((sum, obj) => {
-      const result = parseFloat(obj.result) || 0;
+      const result = parseFloat(obj.managerResult ?? 0) || 0;
       const weighting = parseFloat(obj.weighting) || 0;
       return sum + (result * weighting / 100);
     }, 0);
@@ -422,7 +429,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
     priorities.forEach(priority => {
       const priorityObjectives = priority.objectives || [];
       priorityObjectives.forEach(obj => {
-        const result = parseFloat(obj.result) || 0;
+        const result = parseFloat(obj.managerResult) || 0;
         const weighting = parseFloat(obj.weighting) || 0;
         totalWeightedResult += (result * weighting / 100);
         totalWeighting += weighting;
@@ -444,11 +451,11 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
     let isAnyObjectiveFilled = false;
 
     for (const [index, objective] of (currentPriority.objectives || []).entries()) {
-      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator || objective.result;
+      const isObjectivePartiallyFilled = objective.description || objective.weighting || objective.resultIndicator || objective.managerResult;
       const hasDynamicColumns = Array.isArray(objective.dynamicColumns);
       const isAnyDynamicColumnFilled = hasDynamicColumns ? objective.dynamicColumns.some((column) => column.value) : false;
 
-      if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result)) {
+      if (isAnyDynamicColumnFilled && (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.managerResult)) {
         setErrorMessage(
           `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
         );
@@ -459,7 +466,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
       if (isObjectivePartiallyFilled) {
         isAnyObjectiveFilled = true;
 
-        if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.result) {
+        if (!objective.description || !objective.weighting || !objective.resultIndicator || !objective.managerResult ) {
           setErrorMessage(
             `Tous les champs obligatoires doivent être remplis pour l'objectif ${index + 1} dans "${currentPriority.name}".`
           );
@@ -479,12 +486,16 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
   };
 
   const getFilteredPriorities = () => {
-    return template.templateStrategicPriorities.filter(priority => 
-      priority.objectives && priority.objectives.some(obj => 
-        obj.description && obj.description.trim() !== ''
+    return template.templateStrategicPriorities.filter(priority =>
+      Array.isArray(priority.objectives) &&
+      priority.objectives.some(obj =>
+        (obj.description && obj.description.trim() !== '') ||
+        obj.managerResult !== '' ||
+        (obj.managerComment && obj.managerComment.trim() !== '')
       )
     );
   };
+
 
   const getActivePriority = () => {
     const filteredPriorities = getFilteredPriorities();
@@ -520,7 +531,8 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
           description: objective.description || '',
           weighting: parseFloat(objective.weighting) || 0,
           resultIndicator: objective.resultIndicator || '',
-          result: parseFloat(objective.result) || 0,
+          result: parseFloat(objective.managerResult) || 0,
+          managerComment: objective.managerComment || '',
           dynamicColumns:
             objective.dynamicColumns?.map((col) => ({
               columnName: col.columnName,
@@ -983,7 +995,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
                                         disabled={isValidated}
                                       />
                                     </Grid>
-                                    <Grid item xs={12} sm={6}>
+                                    <Grid item xs={12}>
                                       <TextField
                                         label="Pondération"
                                         fullWidth
@@ -1012,21 +1024,45 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
                                         fullWidth
                                         variant="outlined"
                                         type="text"
-                                        value={objective.result || ''}
+                                        value={objective.collaboratorResult  || ''}
+                                        // onChange={(e) =>
+                                        //   handleObjectiveChange(
+                                        //     getActivePriority().name,
+                                        //     objIndex,
+                                        //     'result',
+                                        //     e.target.value
+                                        //   )
+                                        // }
+                                        error={parseFloat(objective.collaboratorResult ) > 100}
+                                        helperText={parseFloat(objective.collaboratorResult ) > 100 ? 'Maximum 100%' : ''}
+                                        InputProps={{
+                                          readOnly: true,
+                                          endAdornment: <InputAdornment position="end">%</InputAdornment>
+                                        }}
+                                        disabled={isValidated || !hasCollaboratorFilledResults}
+                                      />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                      <TextField
+                                        label="Résultat (évaluation manager)"
+                                        fullWidth
+                                        variant="outlined"
+                                        type="text"
+                                        value={objective.managerResult || ''}
                                         onChange={(e) =>
                                           handleObjectiveChange(
                                             getActivePriority().name,
                                             objIndex,
-                                            'result',
+                                            'managerResult',
                                             e.target.value
                                           )
                                         }
-                                        error={parseFloat(objective.result) > 100}
-                                        helperText={parseFloat(objective.result) > 100 ? 'Maximum 100%' : ''}
+                                        error={parseFloat(objective.managerResult) > 100}
+                                        helperText={parseFloat(objective.managerResult) > 100 ? 'Maximum 100%' : ''}
                                         InputProps={{
                                           endAdornment: <InputAdornment position="end">%</InputAdornment>
                                         }}
-                                        disabled={isValidated || !hasCollaboratorFilledResults}
+                                        disabled={isValidated}
                                       />
                                     </Grid>
 
@@ -1048,6 +1084,25 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
                                         }
                                         disabled={isValidated}
                                       />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                      <TextField
+                                        label="Commentaire du manager"
+                                        fullWidth
+                                        multiline
+                                        minRows={3}
+                                        value={objective.managerComment || ''}
+                                        onChange={(e) =>
+                                          handleObjectiveChange(
+                                            getActivePriority().name,
+                                            objIndex,
+                                            'managerComment',
+                                            e.target.value
+                                          )
+                                        }
+                                        disabled={false}
+                                      />
+
                                     </Grid>
 
                                     {Array.isArray(objective.dynamicColumns) &&

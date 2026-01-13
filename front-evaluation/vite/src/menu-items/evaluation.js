@@ -20,19 +20,19 @@ const evaluation = {
       icon: icons.IconFile,
       children: [
         {
-          id: 'formulaireCadre', 
-          title: 'Cadre',
+          id: 'formulaireNonCadre', 
+          title: 'C1 - C6', //Non Cadre
           type: 'item',
-          url: '/formulaireCadre/home',
+          url: '/formulaireNonCadre/home',
           requiredHabilitation: 9,
           target: false,
           breadcrumbs: false
         },
         {
-          id: 'formulaireNonCadre', 
-          title: 'Non Cadre',
+          id: 'formulaireCadre', 
+          title: 'C7 - C13', //Cadre
           type: 'item',
-          url: '/formulaireNonCadre/home',
+          url: '/formulaireCadre/home',
           requiredHabilitation: 9,
           target: false,
           breadcrumbs: false
@@ -49,20 +49,20 @@ const evaluation = {
       breadcrumbs: false
     },
     {
-      id: 'remplissageCadre',
-      title: 'Cadre',
+      id: 'remplissageNonCadre',
+      title: 'C1 - C6', //Non Cadre
       type: 'item',
-      url: '/evaluation/remplissage',
-      requiredHabilitation: 15,
+      url: '/evaluation/RemplissageNonCadre',
+      requiredHabilitation: 19,
       icon: icons.IconTargetArrow,
       breadcrumbs: false
     },
     {
-      id: 'remplissageNonCadre',
-      title: 'Non Cadre',
+      id: 'remplissageCadre',
+      title: 'C7 - C13', //Cadre
       type: 'item',
-      url: '/evaluation/RemplissageNonCadre',
-      requiredHabilitation: 19,
+      url: '/evaluation/remplissage',
+      requiredHabilitation: 15,
       icon: icons.IconTargetArrow,
       breadcrumbs: false
     }

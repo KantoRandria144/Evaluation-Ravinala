@@ -192,6 +192,7 @@ function ManagerFo() {
                     description: obj.description || '',
                     weighting: obj.weighting || '',
                     resultIndicator: obj.resultIndicator || '',
+                    managerComment: obj.managerComment || '',
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
                         columnName: col.columnName,
@@ -350,7 +351,7 @@ function ManagerFo() {
         });
         if (periodResponse.data?.length > 0) {
           setCurrentPeriod(periodResponse.data[0].currentPeriod);
-          setEvaluationYear(periodResponse.data[0].year || new Date().getFullYear().toString());
+          setEvaluationYear(periodResponse.data[0].evalAnnee?.toString());
         }
       } catch (error) {
         console.error('Erreur lors de l\'initialisation des données:', error);
@@ -367,12 +368,17 @@ function ManagerFo() {
     }
   }, [templateId]);
 
-  const calculateTotalWeighting = (priority) => {
-    return (priority.objectives || []).reduce((sum, obj) => {
-      const weighting = parseFloat(obj.weighting) || 0;
-      return sum + weighting;
-    }, 0);
-  };
+const calculateTotalWeighting = (priority) => {
+  if (!priority || !Array.isArray(priority.objectives)) {
+    return 0;
+  }
+
+  return priority.objectives.reduce((sum, obj) => {
+    const weighting = parseFloat(obj.weighting) || 0;
+    return sum + weighting;
+  }, 0);
+};
+
 
   const calculateOverallTotal = () => {
     return template.templateStrategicPriorities.reduce((sum, priority) => sum + calculateTotalWeighting(priority), 0);
@@ -845,6 +851,26 @@ function ManagerFo() {
                                       }
                                     />
                                   </Grid>
+                                  <Grid item xs={12}>
+                                    <TextField
+                                      label="Commentaire du manager"
+                                      fullWidth
+                                      variant="outlined"
+                                      multiline
+                                      minRows={3}
+                                      value={objective.managerComment || ''}
+                                      onChange={(e) =>
+                                        handleObjectiveChange(
+                                          template.templateStrategicPriorities[activeStep].name,
+                                          objIndex,
+                                          'managerComment',
+                                          e.target.value
+                                        )
+                                      }
+                                      placeholder="Commentaire du manager sur cet objectif"
+                                    />
+                                  </Grid>
+
 
                                   {Array.isArray(objective.dynamicColumns) &&
                                     objective.dynamicColumns.map((column, colIndex) => (

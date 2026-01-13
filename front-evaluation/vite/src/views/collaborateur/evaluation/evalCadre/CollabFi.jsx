@@ -125,6 +125,7 @@ function CollabFi() {
                   weighting: obj.weighting || '',
                   resultIndicator: obj.resultIndicator || '',
                   result: obj.result || '',
+                  managerComment: obj.managerComment ?? '',
                   dynamicColumns:
                     obj.objectiveColumnValues?.map((col) => ({
                       columnName: col.columnName,
@@ -206,6 +207,7 @@ function CollabFi() {
       const requestData = {
         userId: userId,
         type: "Cadre",
+        updatedBy: "COLLABORATOR",
         objectives: userObjectives.map(obj => {
           const resultValue = editedResults[obj.objectiveId];
           let parsedResult = 0;
@@ -653,6 +655,17 @@ function CollabFi() {
                               </Typography>
                             )}
                           </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '15%'
+                            }}
+                          >
+                            Commentaire Manager
+                          </TableCell>
                           {priority.objectives[0]?.dynamicColumns?.map((column, colIndex) => (
                             <TableCell
                               key={colIndex}
@@ -727,6 +740,24 @@ function CollabFi() {
                                 }}
                               >
                                 {renderResultCell(objective)}
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  py: 0.5,
+                                  width: '25%'
+                                }}
+                              > 
+                                {objective.managerComment && (
+                                  <Alert severity="info" sx={{ mt: 1 }}>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                      Commentaire du manager
+                                    </Typography>
+                                    <Typography variant="body2">
+                                      {objective.managerComment}
+                                    </Typography>
+                                  </Alert>
+                                )}
                               </TableCell>
                               {objective.dynamicColumns?.map((column, colIndex) => (
                                 <TableCell
