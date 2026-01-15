@@ -1185,140 +1185,67 @@ namespace EvaluationService.Controllers
             return Ok(history);
         }
 
-        [HttpPost("validateFinale")]
-public async Task<IActionResult> ValidateFinale(
-    [FromBody] ValidateFinaleRequest request)
+       [HttpPost("validateFinale")]
+public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest request)
 {
-    // =========================
-    // 1. VALIDATIONS DE BASE
-    // =========================
-    if (request == null)
-    {
-        return BadRequest(new { Message = "Requête invalide (body null)." });
-    }
+    if (request == null || string.IsNullOrWhiteSpace(request.UserId))
+        return BadRequest("Requête invalide.");
 
-    if (string.IsNullOrWhiteSpace(request.UserId))
-    {
-        return BadRequest(new { Message = "UserId manquant." });
-    }
-
-    if (string.IsNullOrWhiteSpace(request.Type))
-    {
-        return BadRequest(new { Message = "Type d'évaluation manquant." });
-    }
-
-    if (request.Objectives == null || !request.Objectives.Any())
-    {
-        return BadRequest(new { Message = "Aucun objectif reçu pour la validation finale." });
-    }
-
-    // =========================
-    // 2. VALIDATION DU TYPE
-    // =========================
     if (!Enum.TryParse<FormType>(request.Type, true, out var formType))
-    {
-        return BadRequest(new { Message = $"Type d'évaluation invalide : {request.Type}" });
-    }
+        return BadRequest("Type invalide.");
 
-    // =========================
-    // 3. RÉCUPÉRER L'ÉVALUATION EN COURS
-    // =========================
     var evaluationId = await _context.Evaluations
-        .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
+        .Include(e => e.FormTemplate)
+        .Where(e => e.EtatId == 2 
+            && e.FormTemplate != null 
+            && e.FormTemplate.Type == formType)
         .Select(e => e.EvalId)
         .FirstOrDefaultAsync();
 
     if (evaluationId == 0)
-    {
-        return NotFound(new { Message = "Aucune évaluation en cours pour ce type." });
-    }
+        return NotFound("Aucune évaluation en cours.");
 
-    // =========================
-    // 4. RÉCUPÉRER USER EVAL
-    // =========================
     var userEvalId = await GetUserEvalIdAsync(evaluationId, request.UserId);
     if (userEvalId == null)
-    {
-        return NotFound(new { Message = "UserEval introuvable pour cet utilisateur." });
-    }
+        return NotFound("UserEval introuvable.");
 
-    // =========================
-    // 5. TRANSACTION
-    // =========================
     using var transaction = await _context.Database.BeginTransactionAsync();
 
     try
     {
-        // Récupérer tous les objectifs existants
         var userObjectives = await _context.UserObjectives
             .Where(o => o.UserEvalId == userEvalId.Value)
             .ToListAsync();
 
-        // =========================
-        // 6. MISE À JOUR DES OBJECTIFS
-        // =========================
         foreach (var dto in request.Objectives)
         {
             var objective = userObjectives
                 .FirstOrDefault(o => o.ObjectiveId == dto.ObjectiveId);
 
-           if (objective == null)
-            {
-                return BadRequest(new
-                {
-                    Message = $"Objectif introuvable : {dto.ObjectiveId}"
-                });
-            }
+            if (objective == null)
+                return BadRequest($"Objectif introuvable : {dto.ObjectiveId}");
 
-
-            //SÉCURITÉ ABSOLUE
             if (dto.Result == null)
-            {
-                return BadRequest(new
-                {
-                    Message = $"Résultat manager manquant pour l'objectif {dto.ObjectiveId}"
-                });
-            }
+                return BadRequest($"Résultat manquant pour l'objectif {dto.ObjectiveId}");
 
-
-            //SOURCE DE VÉRITÉ
             objective.ManagerResult = dto.Result.Value;
             objective.Result = dto.Result.Value;
-
-            // Commentaire manager (modifiable)
-            if (!string.IsNullOrWhiteSpace(dto.ManagerComment))
-            {
-                objective.ManagerComment = dto.ManagerComment;
-            }
-
-            _context.UserObjectives.Update(objective);
+            objective.ManagerComment = dto.ManagerComment;
         }
 
-        // =========================
-        // 7. SAVE & COMMIT
-        // =========================
         await _context.SaveChangesAsync();
         await transaction.CommitAsync();
 
-        return Ok(new
-        {
-            Message = "Validation finale réussie"
-        });
+        return Ok(new { Message = "Validation finale réussie" });
     }
     catch (Exception ex)
     {
         await transaction.RollbackAsync();
-
-        //LOG SERVEUR CLAIR
-        _logger.LogError(ex, "Erreur lors de la validation finale");
-
-        return StatusCode(500, new
-        {
-            Message = "Erreur interne lors de la validation finale",
-            Details = ex.Message
-        });
+        _logger.LogError(ex, "Erreur validation finale");
+        return StatusCode(500, "Erreur interne.");
     }
 }
+
 
 
         [HttpPost("validateFinaleHistory")]
@@ -1445,8 +1372,9 @@ public async Task<IActionResult> ValidateFinale(
 
             if (history == null || !history.Any())
             {
-                return NotFound(new { Message = "Aucun historique trouvé pour cet utilisateur." });
+                return Ok(new List<HistoryCFi>());
             }
+
 
             return Ok(history);
         }
