@@ -485,6 +485,7 @@ const calculateTotalWeighting = (priority) => {
           weighting: parseFloat(objective.weighting) || 0,
           resultIndicator: objective.resultIndicator || '',
           result: parseFloat(objective.result) || 0,
+          managerComment: objective.managerComment || '',
           objectiveColumnValues:
             objective.dynamicColumns?.map((col) => ({
               columnName: col.columnName,

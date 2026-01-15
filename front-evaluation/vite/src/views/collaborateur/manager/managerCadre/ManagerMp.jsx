@@ -233,69 +233,119 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
     loadUserObjectives();
   }, [evalId, subordinateId]);
 
-  const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
-    // Si c'est déjà validé, ne pas permettre les modifications
-    if (isValidated && field !== 'managerComment') {
-      return;
-    }
+  // const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
+  //   // Si c'est déjà validé, ne pas permettre les modifications
+  //   if (isValidated && field !== 'managerComment') {
+  //     return;
+  //   }
     
-    setTemplate((prevTemplate) => {
-      const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
-        if (priority.name !== priorityName) return priority;
+  //   setTemplate((prevTemplate) => {
+  //     const updatedPriorities = prevTemplate.templateStrategicPriorities.map((priority) => {
+  //       if (priority.name !== priorityName) return priority;
 
-        const updatedObjectives = [...(priority.objectives || [])];
+  //       const updatedObjectives = [...(priority.objectives || [])];
 
-        if (!updatedObjectives[objectiveIndex]) {
-          updatedObjectives[objectiveIndex] = {
-            description: '',
-            weighting: '',
-            resultIndicator: '',
-            collaboratorResult: '',
-            managerResult: '',
-            managerComment: '',
-            dynamicColumns: []
-          };
-        }
+  //       if (!updatedObjectives[objectiveIndex]) {
+  //         updatedObjectives[objectiveIndex] = {
+  //           description: '',
+  //           weighting: '',
+  //           resultIndicator: '',
+  //           collaboratorResult: '',
+  //           managerResult: '',
+  //           managerComment: '',
+  //           dynamicColumns: []
+  //         };
+  //       }
 
-        const objective = { ...updatedObjectives[objectiveIndex] };
+  //       const objective = { ...updatedObjectives[objectiveIndex] };
 
-        if (columnIndex !== null) {
-          if (!Array.isArray(objective.dynamicColumns)) {
-            objective.dynamicColumns = [];
-          }
-          if (!objective.dynamicColumns[columnIndex]) {
-            objective.dynamicColumns[columnIndex] = {
-              columnName: '',
-              value: ''
-            };
-          }
-          objective.dynamicColumns[columnIndex] = {
-            ...objective.dynamicColumns[columnIndex],
-            value
-          };
+  //       if (columnIndex !== null) {
+  //         if (!Array.isArray(objective.dynamicColumns)) {
+  //           objective.dynamicColumns = [];
+  //         }
+  //         if (!objective.dynamicColumns[columnIndex]) {
+  //           objective.dynamicColumns[columnIndex] = {
+  //             columnName: '',
+  //             value: ''
+  //           };
+  //         }
+  //         objective.dynamicColumns[columnIndex] = {
+  //           ...objective.dynamicColumns[columnIndex],
+  //           value
+  //         };
+  //       } else {
+  //         if (field === 'managerResult') {
+  //           const parsed = value.replace(',', '.');
+
+  //           if (parsed === '') {
+  //             objective.managerResult = '';
+  //           } else {
+  //             const num = Number(parsed);
+  //             if (isNaN(num) || num < 0 || num > 100) return priority;
+  //             objective.managerResult = num; //NUMBER
+  //           }
+  //           updatedObjectives[objectiveIndex] = objective;
+  //           return { ...priority, objectives: updatedObjectives };
+  //         }
+
+  //       }
+
+  //       updatedObjectives[objectiveIndex] = objective;
+  //       return { ...priority, objectives: updatedObjectives };
+  //     });
+
+  //     return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
+  //   });
+  // };
+
+
+  const handleObjectiveChange = (priorityName, objectiveIndex, field, value, columnIndex = null) => {
+  setTemplate(prevTemplate => {
+    const updatedPriorities = prevTemplate.templateStrategicPriorities.map(priority => {
+      if (priority.name !== priorityName) return priority;
+
+      const updatedObjectives = [...(priority.objectives || [])];
+      const objective = { ...updatedObjectives[objectiveIndex] };
+
+      //COMMENTAIRE MANAGER → TOUJOURS MODIFIABLE
+      if (field === 'managerComment') {
+        objective.managerComment = value; // texte libre
+        updatedObjectives[objectiveIndex] = objective;
+        return { ...priority, objectives: updatedObjectives };
+      }
+
+      //BLOQUER LES AUTRES CHAMPS SI VALIDÉ
+      if (isValidated) {
+        return priority;
+      }
+
+      //RÉSULTAT MANAGER → NUMÉRIQUE (calcul)
+      if (field === 'managerResult') {
+        const parsed = value.replace(',', '.');
+
+        if (parsed === '') {
+          objective.managerResult = '';
         } else {
-          if (field === 'weighting' || field === 'result' || field === 'managerResult') {
-            let parsedValue = value.replace(',', '.');
-            if (!/^\d{0,3}(\.\d{0,2})?$/.test(parsedValue)) return priority;
-            const numericValue = parseFloat(parsedValue);
-            if (numericValue > 100) {
-              setErrorMessage('La valeur ne peut pas dépasser 100%.');
-              setOpenSnackbar(true);
-              return priority;
-            }
-            objective[field] = parsedValue;
-          } else {
-            objective[field] = value;
-          }
+          const num = Number(parsed);
+          if (isNaN(num) || num < 0 || num > 100) return priority;
+          objective.managerResult = num; // NUMBER
         }
 
         updatedObjectives[objectiveIndex] = objective;
         return { ...priority, objectives: updatedObjectives };
-      });
+      }
 
-      return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
+      //AUTRES CHAMPS (description, indicateur, etc.)
+      objective[field] = value;
+      updatedObjectives[objectiveIndex] = objective;
+
+      return { ...priority, objectives: updatedObjectives };
     });
-  };
+
+    return { ...prevTemplate, templateStrategicPriorities: updatedPriorities };
+  });
+};
+
 
   const checkIfValidated = async () => {
     try {
@@ -401,43 +451,84 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
     }, 0);
   };
 
-  const calculateAverageResult = (priority) => {
-    const objectives = priority.objectives || [];
-    if (objectives.length === 0) return 0;
-    
-    const totalResult = objectives.reduce((sum, obj) => {
-      const result = parseFloat(obj.managerResult ?? 0) || 0;
-      const weighting = parseFloat(obj.weighting) || 0;
-      return sum + (result * weighting / 100);
-    }, 0);
-    
-    const totalWeighting = calculateTotalWeighting(priority);
-    return totalWeighting > 0 ? (totalResult / totalWeighting * 100) : 0;
-  };
+// const calculateAverageResult = (priority) => {
+//   const objectives = priority.objectives || [];
+
+//   const total = objectives.reduce((sum, obj) => {
+//     const result = Number(obj.managerResult) || 0;
+//     const weight = Number(obj.weighting) || 0;
+//     return sum + (result * weight / 100);
+//   }, 0);
+
+//   const totalWeight = calculateTotalWeighting(priority);
+//   return totalWeight > 0 ? (total / totalWeight * 100) : 0;
+// };
+
+const calculateAverageResult = (priority) => {
+  const objectives = priority.objectives || [];
+
+  let total = 0;
+  let totalWeight = 0;
+
+  objectives.forEach(obj => {
+    const result = Number(obj.managerResult);
+    const weight = Number(obj.weighting);
+
+    if (!isNaN(result) && !isNaN(weight)) {
+      total += (result * weight / 100);
+      totalWeight += weight;
+    }
+  });
+
+  return totalWeight > 0 ? (total / totalWeight * 100) : 0;
+};
+
+
 
   const calculateOverallTotal = () => {
     return template.templateStrategicPriorities.reduce((sum, priority) => sum + calculateTotalWeighting(priority), 0);
   };
 
+  // const calculateOverallAverage = () => {
+  //   const priorities = template.templateStrategicPriorities;
+  //   if (priorities.length === 0) return 0;
+    
+  //   let totalWeightedResult = 0;
+  //   let totalWeighting = 0;
+    
+  //   priorities.forEach(priority => {
+  //     const priorityObjectives = priority.objectives || [];
+  //     priorityObjectives.forEach(obj => {
+  //       const result = parseFloat(obj.managerResult) || 0;
+  //       const weighting = parseFloat(obj.weighting) || 0;
+  //       totalWeightedResult += (result * weighting / 100);
+  //       totalWeighting += weighting;
+  //     });
+  //   });
+    
+  //   return totalWeighting > 0 ? (totalWeightedResult / totalWeighting * 100) : 0;
+  // };
+
+
   const calculateOverallAverage = () => {
-    const priorities = template.templateStrategicPriorities;
-    if (priorities.length === 0) return 0;
-    
-    let totalWeightedResult = 0;
-    let totalWeighting = 0;
-    
-    priorities.forEach(priority => {
-      const priorityObjectives = priority.objectives || [];
-      priorityObjectives.forEach(obj => {
-        const result = parseFloat(obj.managerResult) || 0;
-        const weighting = parseFloat(obj.weighting) || 0;
-        totalWeightedResult += (result * weighting / 100);
-        totalWeighting += weighting;
-      });
+  let total = 0;
+  let totalWeight = 0;
+
+  template.templateStrategicPriorities.forEach(priority => {
+    (priority.objectives || []).forEach(obj => {
+      const result = Number(obj.managerResult);
+      const weight = Number(obj.weighting);
+
+      if (!isNaN(result) && !isNaN(weight)) {
+        total += (result * weight / 100);
+        totalWeight += weight;
+      }
     });
-    
-    return totalWeighting > 0 ? (totalWeightedResult / totalWeighting * 100) : 0;
-  };
+  });
+
+  return totalWeight > 0 ? (total / totalWeight * 100) : 0;
+};
+
 
   const validateStep = () => {
     // Si c'est déjà validé, retourner vrai pour permettre la navigation
@@ -485,16 +576,25 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
     return true;
   };
 
+  // const getFilteredPriorities = () => {
+  //   return template.templateStrategicPriorities.filter(priority =>
+  //     Array.isArray(priority.objectives) &&
+  //     priority.objectives.some(obj =>
+  //       (obj.description && obj.description.trim() !== '') ||
+  //       obj.managerResult !== '' ||
+  //       (obj.managerComment && obj.managerComment.trim() !== '')
+  //     )
+  //   );
+  // };
+
   const getFilteredPriorities = () => {
-    return template.templateStrategicPriorities.filter(priority =>
-      Array.isArray(priority.objectives) &&
-      priority.objectives.some(obj =>
-        (obj.description && obj.description.trim() !== '') ||
-        obj.managerResult !== '' ||
-        (obj.managerComment && obj.managerComment.trim() !== '')
-      )
-    );
-  };
+  return template.templateStrategicPriorities.filter(priority =>
+    (priority.objectives || []).some(obj =>
+      obj.description?.trim() !== '' &&
+      !isNaN(Number(obj.managerResult))
+    )
+  );
+};
 
 
   const getActivePriority = () => {

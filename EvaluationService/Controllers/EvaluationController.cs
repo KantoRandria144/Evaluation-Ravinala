@@ -256,7 +256,7 @@ namespace EvaluationService.Controllers
 
             // Utiliser le formType converti dans la requête
             var evaluation = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -433,7 +433,7 @@ namespace EvaluationService.Controllers
                 return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
             }
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -572,7 +572,7 @@ namespace EvaluationService.Controllers
             }
 
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -617,6 +617,10 @@ namespace EvaluationService.Controllers
                         userObjective.Weighting = modifiedObjective.Weighting ?? userObjective.Weighting;
                         userObjective.ResultIndicator = modifiedObjective.ResultIndicator ?? userObjective.ResultIndicator;
                         userObjective.Result = 0;
+                        if (!string.IsNullOrWhiteSpace(modifiedObjective.ManagerComment))
+                        {
+                            userObjective.ManagerComment = modifiedObjective.ManagerComment;
+                        }
 
                         // Mettre à jour les colonnes associées
                         foreach (var modifiedColumn in modifiedObjective.ObjectiveColumnValues)
@@ -757,7 +761,7 @@ namespace EvaluationService.Controllers
 
             // Récupération de l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -816,7 +820,7 @@ namespace EvaluationService.Controllers
             }
 
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -939,25 +943,135 @@ namespace EvaluationService.Controllers
         }
 
 
+        // [HttpPost("validateMitermObjectifHistory")]
+        // public async Task<IActionResult> ValidateMitermObjectifHistory(
+        // string userId,
+        // string type,
+        // List<ObjectiveDto> objectives)
+        // {
+        //     if (!Enum.TryParse<FormType>(type, true, out var formType))
+        //     {
+        //         return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
+        //     }
+
+        //     var evaluationId = await _context.Evaluations
+        //         .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+        //         .Select(e => e.EvalId)
+        //         .FirstOrDefaultAsync();
+
+        //     if (evaluationId == 0)
+        //     {
+        //         return NotFound(new { Message = $"Aucune évaluation en cours pour le type {type}." });
+        //     }
+
+        //     var userEvalId = await GetUserEvalIdAsync(evaluationId, userId);
+        //     if (userEvalId == null)
+        //     {
+        //         return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
+        //     }
+
+        //     try
+        //     {
+        //         using var transaction = await _context.Database.BeginTransactionAsync();
+
+        //         foreach (var objective in objectives)
+        //         {
+        //             // Insérer dans HistoryCMp
+        //             var historyMp = new HistoryCMp
+        //             {
+        //                 UserEvalId = userEvalId.Value,
+        //                 PriorityName = objective.PriorityName,
+        //                 Description = objective.Description,
+        //                 Weighting = objective.Weighting,
+        //                 ResultIndicator = objective.ResultIndicator,
+        //                 Result = objective.Result,
+        //                 UpdatedAt = DateTime.Now,
+        //                 ValidatedBy = userId
+        //             };
+        //             _context.HistoryCMps.Add(historyMp);
+        //             await _context.SaveChangesAsync();
+
+        //             var hcmId = historyMp.HcmId;
+
+        //             // Insérer dans HistoryObjectiveColumnValuesMp
+        //             foreach (var columnValue in objective.DynamicColumns)
+        //             {
+        //                 var historyColumnValue = new HistoryObjectiveColumnValuesMp
+        //                 {
+        //                     HcmId = hcmId,
+        //                     ColumnName = columnValue.ColumnName,
+        //                     Value = columnValue.Value,
+        //                     CreatedAt = DateTime.Now,
+        //                     ValidatedBy = userId
+        //                 };
+        //                 _context.HistoryObjectiveColumnValuesMps.Add(historyColumnValue);
+        //             }
+        //         }
+
+        //         await _context.SaveChangesAsync();
+        //         await transaction.CommitAsync();
+
+        //         try
+        //         {
+        //             var manager = await GetManagerByUserIdAsync(userId);
+        //             var triggeringUser = await GetUserDetails(userId); // Utilisation de la méthode existante
+
+        //             if (manager != null && !string.IsNullOrEmpty(manager.Id))
+        //             {
+        //                 var message = $"{triggeringUser.Name} a validé ses résultats pour la période d'évaluation Mi-parcours";
+
+        //                 // Enregistrer la notification dans la base de données
+        //                 var notification = new Notification
+        //                 {
+        //                     UserId = manager.Id,
+        //                     SenderId = userId,
+        //                     SenderMatricule = triggeringUser.Matricule,
+        //                     Message = message,
+        //                     IsRead = false,
+        //                     CreatedAt = DateTime.Now
+        //                 };
+
+        //                 _context.Notifications.Add(notification);
+        //                 await _context.SaveChangesAsync();
+
+        //                 NotificationService.Notify(manager.Id, notification);
+
+        //                 Console.WriteLine($"Notification envoyée et stockée pour le manager : {manager.Name}.");
+        //             }
+        //         }
+        //         catch (Exception ex)
+        //         {
+        //             Console.WriteLine($"Erreur lors de la notification du manager : {ex.Message}");
+        //         }
+
+        //         return Ok(new { Message = "Validation effectuée et historique ajouté avec succès." });
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         Console.WriteLine("Error during transaction: " + ex.Message);
+        //         return StatusCode(500, "Erreur lors de la validation et de l'insertion dans HistoryCMp.");
+        //     }
+        // }
+
         [HttpPost("validateMitermObjectifHistory")]
         public async Task<IActionResult> ValidateMitermObjectifHistory(
-        string userId,
-        string type,
-        List<ObjectiveDto> objectives)
+            string userId,
+            string type,
+            [FromBody] List<ObjectiveDto> objectives)
         {
             if (!Enum.TryParse<FormType>(type, true, out var formType))
             {
-                return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
+                return BadRequest(new { Message = "Type d'évaluation invalide." });
             }
 
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
             if (evaluationId == 0)
             {
-                return NotFound(new { Message = $"Aucune évaluation en cours pour le type {type}." });
+                return NotFound(new { Message = "Aucune évaluation en cours." });
             }
 
             var userEvalId = await GetUserEvalIdAsync(evaluationId, userId);
@@ -966,13 +1080,32 @@ namespace EvaluationService.Controllers
                 return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
             }
 
+            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                using var transaction = await _context.Database.BeginTransactionAsync();
+                // 🔥 1. RÉCUPÉRER LES OBJECTIFS ACTUELS
+                var userObjectives = await _context.UserObjectives
+                    .Where(uo => uo.UserEvalId == userEvalId.Value)
+                    .ToListAsync();
 
                 foreach (var objective in objectives)
                 {
-                    // Insérer dans HistoryCMp
+                    var userObjective = userObjectives
+                        .FirstOrDefault(uo => uo.ObjectiveId == objective.ObjectiveId);
+
+                    if (userObjective == null)
+                        continue;
+
+                    // ✅ 2. SAUVEGARDE RÉSULTAT MANAGER (SOURCE DE VÉRITÉ)
+                    userObjective.ManagerResult = objective.Result;
+                    userObjective.Result = objective.Result;
+
+                    // ✅ 3. SAUVEGARDE COMMENTAIRE MANAGER (MODIFIABLE)
+                    userObjective.ManagerComment = objective.ManagerComment;
+
+                    _context.UserObjectives.Update(userObjective);
+
+                    // ✅ 4. HISTORIQUE (TRACE UNIQUEMENT)
                     var historyMp = new HistoryCMp
                     {
                         UserEvalId = userEvalId.Value,
@@ -984,70 +1117,22 @@ namespace EvaluationService.Controllers
                         UpdatedAt = DateTime.Now,
                         ValidatedBy = userId
                     };
+
                     _context.HistoryCMps.Add(historyMp);
-                    await _context.SaveChangesAsync();
-
-                    var hcmId = historyMp.HcmId;
-
-                    // Insérer dans HistoryObjectiveColumnValuesMp
-                    foreach (var columnValue in objective.DynamicColumns)
-                    {
-                        var historyColumnValue = new HistoryObjectiveColumnValuesMp
-                        {
-                            HcmId = hcmId,
-                            ColumnName = columnValue.ColumnName,
-                            Value = columnValue.Value,
-                            CreatedAt = DateTime.Now,
-                            ValidatedBy = userId
-                        };
-                        _context.HistoryObjectiveColumnValuesMps.Add(historyColumnValue);
-                    }
                 }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                try
-                {
-                    var manager = await GetManagerByUserIdAsync(userId);
-                    var triggeringUser = await GetUserDetails(userId); // Utilisation de la méthode existante
-
-                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
-                    {
-                        var message = $"{triggeringUser.Name} a validé ses résultats pour la période d'évaluation Mi-parcours";
-
-                        // Enregistrer la notification dans la base de données
-                        var notification = new Notification
-                        {
-                            UserId = manager.Id,
-                            SenderId = userId,
-                            SenderMatricule = triggeringUser.Matricule,
-                            Message = message,
-                            IsRead = false,
-                            CreatedAt = DateTime.Now
-                        };
-
-                        _context.Notifications.Add(notification);
-                        await _context.SaveChangesAsync();
-
-                        NotificationService.Notify(manager.Id, notification);
-
-                        Console.WriteLine($"Notification envoyée et stockée pour le manager : {manager.Name}.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Erreur lors de la notification du manager : {ex.Message}");
-                }
-
-                return Ok(new { Message = "Validation effectuée et historique ajouté avec succès." });
+                return Ok(new { Message = "Validation mi-parcours effectuée avec succès." });
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error during transaction: " + ex.Message);
-                return StatusCode(500, "Erreur lors de la validation et de l'insertion dans HistoryCMp.");
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { Message = "Erreur lors de la validation mi-parcours.", Details = ex.Message });
             }
         }
+
 
         [HttpGet("getHistoryMidtermeByUser")]
         public async Task<IActionResult> GetHistoryCMps(string userId, string type)
@@ -1071,7 +1156,7 @@ namespace EvaluationService.Controllers
 
             // Récupération de l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1101,168 +1186,177 @@ namespace EvaluationService.Controllers
         }
 
         [HttpPost("validateFinale")]
-        public async Task<IActionResult> UpdateObjectiveValues(
-            string validatorUserId,
-            string userId,
-            string type,
-            [FromBody] List<ModifiedUserObjectiveDto> objectives)
+public async Task<IActionResult> ValidateFinale(
+    [FromBody] ValidateFinaleRequest request)
+{
+    // =========================
+    // 1. VALIDATIONS DE BASE
+    // =========================
+    if (request == null)
+    {
+        return BadRequest(new { Message = "Requête invalide (body null)." });
+    }
+
+    if (string.IsNullOrWhiteSpace(request.UserId))
+    {
+        return BadRequest(new { Message = "UserId manquant." });
+    }
+
+    if (string.IsNullOrWhiteSpace(request.Type))
+    {
+        return BadRequest(new { Message = "Type d'évaluation manquant." });
+    }
+
+    if (request.Objectives == null || !request.Objectives.Any())
+    {
+        return BadRequest(new { Message = "Aucun objectif reçu pour la validation finale." });
+    }
+
+    // =========================
+    // 2. VALIDATION DU TYPE
+    // =========================
+    if (!Enum.TryParse<FormType>(request.Type, true, out var formType))
+    {
+        return BadRequest(new { Message = $"Type d'évaluation invalide : {request.Type}" });
+    }
+
+    // =========================
+    // 3. RÉCUPÉRER L'ÉVALUATION EN COURS
+    // =========================
+    var evaluationId = await _context.Evaluations
+        .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
+        .Select(e => e.EvalId)
+        .FirstOrDefaultAsync();
+
+    if (evaluationId == 0)
+    {
+        return NotFound(new { Message = "Aucune évaluation en cours pour ce type." });
+    }
+
+    // =========================
+    // 4. RÉCUPÉRER USER EVAL
+    // =========================
+    var userEvalId = await GetUserEvalIdAsync(evaluationId, request.UserId);
+    if (userEvalId == null)
+    {
+        return NotFound(new { Message = "UserEval introuvable pour cet utilisateur." });
+    }
+
+    // =========================
+    // 5. TRANSACTION
+    // =========================
+    using var transaction = await _context.Database.BeginTransactionAsync();
+
+    try
+    {
+        // Récupérer tous les objectifs existants
+        var userObjectives = await _context.UserObjectives
+            .Where(o => o.UserEvalId == userEvalId.Value)
+            .ToListAsync();
+
+        // =========================
+        // 6. MISE À JOUR DES OBJECTIFS
+        // =========================
+        foreach (var dto in request.Objectives)
         {
-            if (!Enum.TryParse<FormType>(type, true, out var formType))
+            var objective = userObjectives
+                .FirstOrDefault(o => o.ObjectiveId == dto.ObjectiveId);
+
+           if (objective == null)
             {
-                return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
-            }
-
-            var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
-                .Select(e => e.EvalId)
-                .FirstOrDefaultAsync();
-
-            if (evaluationId == 0)
-            {
-                return NotFound(new { Message = $"Aucune évaluation en cours pour le type {type}." });
-            }
-
-            var userEvalId = await GetUserEvalIdAsync(evaluationId, userId);
-            if (userEvalId == null)
-            {
-                return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
-            }
-
-            try
-            {
-                using var transaction = await _context.Database.BeginTransactionAsync();
-
-                foreach (var modifiedObjective in objectives)
+                return BadRequest(new
                 {
-                    // Récupérer l'objectif utilisateur par ObjectiveId
-                    var userObjective = await _context.UserObjectives
-                        .Include(uo => uo.ObjectiveColumnValues)
-                        .ThenInclude(ocv => ocv.ObjectiveColumn)
-                        .FirstOrDefaultAsync(uo => uo.UserEvalId == userEvalId.Value && uo.ObjectiveId == modifiedObjective.ObjectiveId);
-
-                    if (userObjective == null)
-                    {
-                        return BadRequest(new { Message = $"L'objectif avec l'ID {modifiedObjective.ObjectiveId} n'existe pas pour cet utilisateur." });
-                    }
-
-                    // Mettre à jour uniquement le champ Result
-                    if (modifiedObjective.Result != null)
-                    {
-                        userObjective.ManagerResult = modifiedObjective.Result;
-                        userObjective.Result = modifiedObjective.Result; // officiel
-                        _context.UserObjectives.Update(userObjective);
-                    }
-
-
-                    // Mettre à jour ou insérer les ObjectiveColumnValues
-                    foreach (var modifiedColumn in modifiedObjective.ObjectiveColumnValues ?? new List<ColumnValueDto>())
-                    {
-                        var columnToUpdate = userObjective.ObjectiveColumnValues
-                            .FirstOrDefault(c => c.ObjectiveColumn != null && c.ObjectiveColumn.Name == modifiedColumn.ColumnName);
-
-                        if (columnToUpdate != null)
-                        {
-                            // Mettre à jour la valeur existante
-                            columnToUpdate.Value = modifiedColumn.Value;
-                            _context.ObjectiveColumnValues.Update(columnToUpdate);
-                        }
-                        else
-                        {
-                            // Vérifier si la colonne existe dans la base de données
-                            var column = await _context.ObjectiveColumns
-                                .FirstOrDefaultAsync(c => c.Name == modifiedColumn.ColumnName);
-
-                            if (column == null)
-                            {
-                                throw new InvalidOperationException($"La colonne '{modifiedColumn.ColumnName}' n'existe pas dans la base de données.");
-                            }
-
-                            // Si la colonne existe mais n'est pas liée à l'objectif, renvoyer une erreur
-                            return BadRequest(new { Message = $"La colonne '{modifiedColumn.ColumnName}' n'est pas liée à l'objectif utilisateur actuel." });
-                        }
-                    }
-                }
-
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                try
-                {
-                    var manager = await GetManagerByUserIdAsync(userId);
-                    var triggeringUser = await GetUserDetails(userId); // Utilisation de la méthode existante
-
-                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
-                    {
-                        var message = $"{manager.Name} a validé vos résultats pour la période d'évaluation final";
-
-                        // Enregistrer la notification dans la base de données
-                        var notification = new Notification
-                        {
-                            UserId = userId,
-                            SenderId = manager.Id,
-                            SenderMatricule = manager.Matricule,
-                            Message = message,
-                            EvalId = evaluationId,
-                            IsRead = false,
-                            CreatedAt = DateTime.Now
-                        };
-
-                        _context.Notifications.Add(notification);
-                        await _context.SaveChangesAsync();
-
-                        NotificationService.Notify(userId, notification);
-
-                        Console.WriteLine($"Notification envoyée et stockée pour le manager : {manager.Name}.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Erreur lors de la notification du manager : {ex.Message}");
-                }
-
-                return Ok(new { Message = "Mise à jour des colonnes et des résultats effectuée avec succès." });
+                    Message = $"Objectif introuvable : {dto.ObjectiveId}"
+                });
             }
-            catch (Exception ex)
+
+
+            //SÉCURITÉ ABSOLUE
+            if (dto.Result == null)
             {
-                Console.WriteLine($"Error during transaction: {ex.Message}");
-                return StatusCode(500, "Erreur lors de la mise à jour des colonnes et résultats.");
+                return BadRequest(new
+                {
+                    Message = $"Résultat manager manquant pour l'objectif {dto.ObjectiveId}"
+                });
             }
+
+
+            //SOURCE DE VÉRITÉ
+            objective.ManagerResult = dto.Result.Value;
+            objective.Result = dto.Result.Value;
+
+            // Commentaire manager (modifiable)
+            if (!string.IsNullOrWhiteSpace(dto.ManagerComment))
+            {
+                objective.ManagerComment = dto.ManagerComment;
+            }
+
+            _context.UserObjectives.Update(objective);
         }
+
+        // =========================
+        // 7. SAVE & COMMIT
+        // =========================
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new
+        {
+            Message = "Validation finale réussie"
+        });
+    }
+    catch (Exception ex)
+    {
+        await transaction.RollbackAsync();
+
+        //LOG SERVEUR CLAIR
+        _logger.LogError(ex, "Erreur lors de la validation finale");
+
+        return StatusCode(500, new
+        {
+            Message = "Erreur interne lors de la validation finale",
+            Details = ex.Message
+        });
+    }
+}
+
 
         [HttpPost("validateFinaleHistory")]
         public async Task<IActionResult> ValidateFinaleHistory(
-            string userId,
-            string type,
-            [FromBody] List<ObjectiveDto> objectives)
+            [FromBody] ValidateFinaleHistoryRequest request)
         {
-            if (!Enum.TryParse<FormType>(type, true, out var formType))
+            if (request == null || request.Objectives == null || !request.Objectives.Any())
             {
-                return BadRequest(new { Message = "Type d'évaluation invalide. Utilisez 'Cadre' ou 'NonCadre'." });
+                return BadRequest(new { Message = "Données invalides pour la validation finale (history)." });
+            }
+
+            if (!Enum.TryParse<FormType>(request.Type, true, out var formType))
+            {
+                return BadRequest(new { Message = "Type d'évaluation invalide." });
             }
 
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null &&  e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
             if (evaluationId == 0)
             {
-                return NotFound(new { Message = $"Aucune évaluation en cours pour le type {type}." });
+                return NotFound(new { Message = $"Aucune évaluation en cours pour le type {request.Type}." });
             }
 
-            var userEvalId = await GetUserEvalIdAsync(evaluationId, userId);
+            var userEvalId = await GetUserEvalIdAsync(evaluationId, request.UserId);
             if (userEvalId == null)
             {
                 return NotFound(new { Message = "Évaluation utilisateur non trouvée." });
             }
 
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
             try
             {
-                using var transaction = await _context.Database.BeginTransactionAsync();
-
-                foreach (var objective in objectives)
+                foreach (var objective in request.Objectives)
                 {
-                    // Insérer dans HistoryCFi
                     var historyEntry = new HistoryCFi
                     {
                         UserEvalId = userEvalId.Value,
@@ -1271,73 +1365,40 @@ namespace EvaluationService.Controllers
                         Weighting = objective.Weighting,
                         ResultIndicator = objective.ResultIndicator,
                         Result = objective.Result,
-                        ValidatedBy = userId,
+                        ValidatedBy = request.UserId,
                         UpdatedAt = DateTime.Now
                     };
+
                     _context.HistoryCFis.Add(historyEntry);
                     await _context.SaveChangesAsync();
 
-                    var hcfiId = historyEntry.HcfiId;
-
-                    // Insérer dans HistoryObjectiveColumnValuesFi
-                    foreach (var columnValue in objective.DynamicColumns ?? new List<ColumnValueDto>())
+                    foreach (var column in objective.DynamicColumns ?? new List<ColumnValueDto>())
                     {
-                        var historyColumnValue = new HistoryObjectiveColumnValuesFi
-                        {
-                            HcfiId = hcfiId,
-                            ColumnName = columnValue.ColumnName,
-                            Value = columnValue.Value,
-                            CreatedAt = DateTime.Now,
-                            ValidatedBy = userId
-                        };
-                        _context.HistoryObjectiveColumnValuesFis.Add(historyColumnValue);
+                        _context.HistoryObjectiveColumnValuesFis.Add(
+                            new HistoryObjectiveColumnValuesFi
+                            {
+                                HcfiId = historyEntry.HcfiId,
+                                ColumnName = column.ColumnName,
+                                Value = column.Value,
+                                CreatedAt = DateTime.Now,
+                                ValidatedBy = request.UserId
+                            }
+                        );
                     }
                 }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                try
-                {
-                    var manager = await GetManagerByUserIdAsync(userId);
-                    var triggeringUser = await GetUserDetails(userId); // Utilisation de la méthode existante
-
-                    if (manager != null && !string.IsNullOrEmpty(manager.Id))
-                    {
-                        var message = $"{triggeringUser.Name} a validé ses résultats pour la période d'évaluation final";
-
-                        // Enregistrer la notification dans la base de données
-                        var notification = new Notification
-                        {
-                            UserId = manager.Id,
-                            SenderId = userId,
-                            SenderMatricule = triggeringUser.Matricule,
-                            Message = message,
-                            IsRead = false,
-                            CreatedAt = DateTime.Now
-                        };
-
-                        _context.Notifications.Add(notification);
-                        await _context.SaveChangesAsync();
-
-                        NotificationService.Notify(manager.Id, notification);
-
-                        Console.WriteLine($"Notification envoyée et stockée pour le manager : {manager.Name}.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Erreur lors de la notification du manager : {ex.Message}");
-                }
-
-                return Ok(new { Message = "Validation finale effectuée et historique ajouté avec succès." });
+                return Ok(new { Message = "Validation finale historique effectuée avec succès." });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error during transaction: {ex.Message}");
-                return StatusCode(500, "Erreur lors de la validation finale et de l'insertion dans l'historique.");
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { Message = "Erreur validation finale history", Details = ex.Message });
             }
         }
+
 
         [HttpGet("getHistoryFinale")]
         public async Task<IActionResult> GetHistoryCFi(string userId, string type)
@@ -1361,7 +1422,7 @@ namespace EvaluationService.Controllers
 
             // Récupération de l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1404,7 +1465,7 @@ namespace EvaluationService.Controllers
 
             // Récupération de l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1460,7 +1521,7 @@ namespace EvaluationService.Controllers
 
             // Récupération de l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1580,7 +1641,7 @@ namespace EvaluationService.Controllers
 
             // Récupère l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1680,7 +1741,7 @@ namespace EvaluationService.Controllers
 
             // 2. Récupérer l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1826,7 +1887,7 @@ namespace EvaluationService.Controllers
 
             // Récupérer l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -1956,7 +2017,7 @@ namespace EvaluationService.Controllers
 
             // Récupère l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2078,7 +2139,7 @@ namespace EvaluationService.Controllers
 
             // Récupère l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2213,7 +2274,7 @@ namespace EvaluationService.Controllers
 
             // Récupère l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2279,7 +2340,7 @@ namespace EvaluationService.Controllers
 
             // 2. Récupérer l'ID de l'évaluation actuelle basée sur le type et EtatId
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2412,7 +2473,7 @@ namespace EvaluationService.Controllers
 
             // 2. Récupérer l'ID de l'évaluation actuelle basée sur le type et EtatId
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2484,7 +2545,7 @@ namespace EvaluationService.Controllers
 
             // 2. Retrieve the current evaluation ID based on type and EtatId
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2622,7 +2683,7 @@ namespace EvaluationService.Controllers
 
                     // 2. Récupérer l'évaluation actuelle basée sur le type et l'état
                     var evaluationId = await _context.Evaluations
-                        .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                        .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                         .Select(e => e.EvalId)
                         .FirstOrDefaultAsync();
 
@@ -2690,7 +2751,7 @@ namespace EvaluationService.Controllers
 
             // Récupérer l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2789,7 +2850,7 @@ namespace EvaluationService.Controllers
 
             // Récupérer l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2905,7 +2966,7 @@ namespace EvaluationService.Controllers
 
             // Récupérer l'ID de l'évaluation en cours pour le type spécifié
             var evaluationId = await _context.Evaluations
-                .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                 .Select(e => e.EvalId)
                 .FirstOrDefaultAsync();
 
@@ -2970,7 +3031,7 @@ namespace EvaluationService.Controllers
 
                 // Récupérer l'ID de l'évaluation en cours pour le type spécifié
                 var evaluationId = await _context.Evaluations
-                    .Where(e => e.EtatId == 2 && e.FormTemplate.Type == formType)
+                    .Where(e => e.EtatId == 2 && e.FormTemplate != null && e.FormTemplate.Type == formType)
                     .Select(e => e.EvalId)
                     .FirstOrDefaultAsync();
 
@@ -3067,6 +3128,11 @@ namespace EvaluationService.Controllers
                                 if (existingObjective.ManagerResult == null)
                                     existingObjective.Result = objectiveRequest.Result.Value;
                             }
+                        }
+
+                        if (isManager && !string.IsNullOrWhiteSpace(objectiveRequest.ManagerComment))
+                        {
+                            existingObjective.ManagerComment = objectiveRequest.ManagerComment;
                         }
 
 
@@ -3345,15 +3411,14 @@ namespace EvaluationService.Controllers
         public class ModifiedUserObjectiveDto
         {
             public int ObjectiveId { get; set; }
-            public string indicatorName { get; set; }
             public string? Description { get; set; }
-            public string? ManagerComment { get; set; }
-
             public decimal? Weighting { get; set; }
             public string? ResultIndicator { get; set; }
             public decimal? Result { get; set; }
+            public string? ManagerComment { get; set; }
             public List<ColumnValueDto>? ObjectiveColumnValues { get; set; }
         }
+
 
         public class UserHelpContentRequest
         {
@@ -3404,6 +3469,23 @@ namespace EvaluationService.Controllers
             public string ValidatedBy { get; set; }
             public DateTime CreatedAt { get; set; }
         }
+
+        public class ValidateFinaleRequest
+        {
+            
+            public string UserId { get; set; }
+            public string Type { get; set; }
+            public List<ModifiedUserObjectiveDto> Objectives { get; set; }
+        }
+
+        public class ValidateFinaleHistoryRequest
+        {
+            public string UserId { get; set; }
+            public string Type { get; set; }
+            public List<ObjectiveDto> Objectives { get; set; }
+        }
+
+
 
     }
 }
