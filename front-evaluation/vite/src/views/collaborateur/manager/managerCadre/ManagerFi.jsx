@@ -354,14 +354,16 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
         setIsValidated(false);
       }
     } catch (error) {
-      console.error('Erreur lors de la vérification de la validation :', error);
-      setValidationHistory([]);
-      setEnrichedValidationHistory([]);
-      setIsValidated(false);
-      if (error.response?.status >= 500) {
-        setErrorMessage('Erreur serveur lors de la vérification des données validées.');
-        setOpenSnackbar(true);
-      }
+       if (error.response?.status === 404) {
+          //Aucun historique = pas encore validé (CAS NORMAL)
+          setIsValidated(false);
+          setValidationHistory([]);
+          setEnrichedValidationHistory([]);
+          return;
+        }
+
+        console.error('Erreur lors de la vérification de la validation :', error);
+        setIsValidated(false);
     }
   };
 
@@ -396,7 +398,6 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
           fetchCadreTemplateId(),
           checkOngoingEvaluation(),
           checkIfValidated(),
-          checkManagerValidationStatus(),
           fetchSubordinate()
         ]);
       } catch (error) {
@@ -449,7 +450,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
     priorities.forEach(priority => {
       const priorityObjectives = priority.objectives || [];
       priorityObjectives.forEach(obj => {
-        const result = parseFloat(obj.result) || 0;
+        const result = parseFloat(obj.managerResult ?? 0) || 0;
         const weighting = parseFloat(obj.weighting) || 0;
         totalWeightedResult += (result * weighting / 100);
         totalWeighting += weighting;
@@ -534,11 +535,13 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
           .filter(obj => obj.description && obj.description.trim() !== '')
           .map((objective) => ({
             objectiveId: objective.objectiveId,
-            indicatorName: priority.name,
             description: objective.description || '',
             weighting: parseFloat(objective.weighting) || 0,
             resultIndicator: objective.resultIndicator || '',
-            result: parseFloat(objective.managerResult) || 0,
+            result: objective.managerResult !== '' 
+              ? Number(objective.managerResult) 
+              : null,
+
             managerComment: objective.managerComment || '',
             objectiveColumnValues:
               objective.dynamicColumns?.map((col) => ({
@@ -548,44 +551,74 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
           }))
       );
 
+     const invalid = objectivesData.some(o =>
+      o.result === null || isNaN(o.result)
+    );
+
+    if (invalid) {
+      setErrorMessage("Tous les résultats manager doivent être renseignés.");
+      setOpenSnackbar(true);
+      return;
+    }
+
+
+      const safeType = typeUser?.trim();
+
+      if (safeType !== 'Cadre' && safeType !== 'NonCadre') {
+        setErrorMessage(`Type d’évaluation invalide : ${safeType}`);
+        setOpenSnackbar(true);
+        return;
+      }
+
+
+
       // Validation finale (première validation)
-      const firstValidationResponse = await formulaireInstance.post('/Evaluation/validateFinale', objectivesData, {
-        params: {
-          validatorUserId: managerId,
-          userId: subordinateId,
-          type: typeUser
-        }
+     const firstValidationResponse = await formulaireInstance.post('/Evaluation/validateFinale', {
+       
+        UserId: subordinateId,
+        Type: safeType,
+        Objectives: objectivesData
       });
+
+
+
 
       console.log('Première validation réussie:', firstValidationResponse.data);
 
       // Ensuite, effectuer la validation finale (seconde validation)
-      const historyObjectivesData = filteredPriorities.flatMap((priority) =>
-        priority.objectives
-          .filter(obj => obj.description && obj.description.trim() !== '')
-          .map((objective) => ({
-            priorityId: priority.templatePriorityId,
-            priorityName: priority.name,
-            description: objective.description || '',
-            weighting: parseFloat(objective.weighting) || 0,
-            resultIndicator: objective.resultIndicator || '',
-            result: parseFloat(objective.result) || 0,
-            dynamicColumns:
-              objective.dynamicColumns?.map((col) => ({
-                columnName: col.columnName,
-                value: col.value
-              })) || []
-          }))
-      );
+     const historyObjectivesData = filteredPriorities.flatMap((priority) =>
+      priority.objectives
+        .filter(obj => obj.description && obj.description.trim() !== '')
+        .map((objective) => ({
+          objectiveId: objective.objectiveId, 
+          priorityName: priority.name,
+          description: objective.description,
+          weighting: Number(objective.weighting),
+          resultIndicator: objective.resultIndicator,
+          result: Number(objective.managerResult), 
+          managerComment: objective.managerComment || '',
+          dynamicColumns: objective.dynamicColumns?.map(col => ({
+            columnName: col.columnName,
+            value: col.value
+          })) || []
+        }))
+    );
+
+     // Vérifier à nouveau les données avant envoi
+    console.log('Données envoyées pour validateFinaleHistory:', {
+      UserId: subordinateId,
+      Type: typeUser,
+      Objectives: historyObjectivesData
+    });
+
 
       // Validation finale (seconde validation)
-      const finalValidationResponse = await formulaireInstance.post('/Evaluation/validateFinaleHistory', historyObjectivesData, {
-        params: {
-          userId: subordinateId,
-          type: typeUser,
-          validatedBy: managerId
-        }
+      const finalValidationResponse = await formulaireInstance.post('/Evaluation/validateFinaleHistory', {
+        UserId: subordinateId,
+        Type: typeUser,
+        Objectives: historyObjectivesData
       });
+
 
       console.log('Validation finale réussie:', finalValidationResponse.data);
 

@@ -283,18 +283,33 @@ function CollabFo() {
     });
   };
 
-  const checkIfValidated = async () => {
-    try {
-      const response = await formulaireInstance.get('/Evaluation/getUserObjectivesHistory', {
-        params: {
-          userId,
-          type: userType
-        }
-      });
+const checkIfValidated = async () => {
+  try {
+    // UTILISEZ SEULEMENT L'ENDPOINT QUI EXISTE
+    const response = await formulaireInstance.get('/Evaluation/getUserObjectivesHistory', {
+      params: {
+        userId: userId,        // Notez: "userId" pas "UserId"
+        type: userType         // Notez: "type" pas "userType"
+      }
+    });
 
-      if (response.data && response.data.historyCFos && response.data.historyCFos.length > 0) {
+    if (response.data) {
+      // Vérifiez la structure de la réponse
+      let historyData = [];
+      
+      if (Array.isArray(response.data)) {
+        historyData = response.data;
+      } else if (response.data.historyCFos) {
+        historyData = response.data.historyCFos;
+      } else if (response.data.data) {
+        historyData = response.data.data;
+      } else if (response.data.HistoryCFos) {
+        historyData = response.data.HistoryCFos;
+      }
+      
+      if (historyData && historyData.length > 0) {
         const uniqueValidatorMap = new Map();
-        const history = response.data.historyCFos.filter(entry => entry.validatedBy !== null);
+        const history = historyData.filter(entry => entry.validatedBy !== null);
         history.forEach((entry) => {
           if (!uniqueValidatorMap.has(entry.validatedBy)) {
             uniqueValidatorMap.set(entry.validatedBy, entry);
@@ -307,43 +322,56 @@ function CollabFo() {
         });
         const uniqueHistory = Array.from(uniqueValidatorMap.values());
         setValidationHistory(uniqueHistory);
-        const enriched = await Promise.all(
-          uniqueHistory.map(async (entry) => {
-            const userInfo = await fetchUserInfo(entry.validatedBy);
-            const formattedDate = entry.date || entry.createdAt ? new Date(entry.date || entry.createdAt).toLocaleDateString('fr-FR', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            }) : 'Date non disponible';
-            return {
-              ...entry,
-              user: userInfo,
-              formattedDate,
-              status: 'Validé'
-            };
-          })
-        );
-        const sortedEnriched = enriched.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
-        setEnrichedValidationHistory(sortedEnriched);
-        setIsValidated(uniqueHistory.length > 0);
+        
+        if (uniqueHistory.length > 0) {
+          const enriched = await Promise.all(
+            uniqueHistory.map(async (entry) => {
+              const userInfo = await fetchUserInfo(entry.validatedBy);
+              const formattedDate = entry.date || entry.createdAt ? new Date(entry.date || entry.createdAt).toLocaleDateString('fr-FR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : 'Date non disponible';
+              return {
+                ...entry,
+                user: userInfo,
+                formattedDate,
+                status: 'Validé'
+              };
+            })
+          );
+          const sortedEnriched = enriched.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+          setEnrichedValidationHistory(sortedEnriched);
+          setIsValidated(true);
+        } else {
+          setEnrichedValidationHistory([]);
+          setIsValidated(false);
+        }
       } else {
         setValidationHistory([]);
         setEnrichedValidationHistory([]);
         setIsValidated(false);
       }
-    } catch (error) {
-      console.error('Erreur lors de la vérification des données validées :', error);
+    } else {
       setValidationHistory([]);
       setEnrichedValidationHistory([]);
       setIsValidated(false);
-      if (error.response?.status >= 500) {
-        setErrorMessage('Erreur serveur lors de la vérification des données validées.');
-        setOpenSnackbar(true);
-      }
     }
-  };
+  } catch (error) {
+    console.log('Aucune donnée validée trouvée (normal si pas encore validé):', error.message);
+    setValidationHistory([]);
+    setEnrichedValidationHistory([]);
+    setIsValidated(false);
+    
+    // Ne pas afficher d'erreur pour les 404 ou 400
+    if (error.response?.status >= 500) {
+      setErrorMessage('Erreur serveur lors de la vérification des données validées.');
+      setOpenSnackbar(true);
+    }
+  }
+};
 
 useEffect(() => {
   const initData = async () => {
@@ -351,11 +379,17 @@ useEffect(() => {
     try {
       await Promise.all([
         fetchCadreTemplateId(),
-        checkOngoingEvaluation(),
-        checkIfValidated()
+        checkOngoingEvaluation()
       ]);
       
-      //On récupère STRICTEMENT l'année de la période d'évaluation
+      // Gérer checkIfValidated avec try-catch séparé
+      try {
+        await checkIfValidated();
+      } catch (error) {
+        console.log('checkIfValidated a échoué (normal si pas encore validé):', error.message);
+        // Ne pas bloquer le chargement pour cette erreur
+      }
+      
       const periodResponse = await formulaireInstance.get(
         '/Periode/periodeActel',
         { params: { type: 'Cadre' } }
@@ -363,14 +397,15 @@ useEffect(() => {
 
       if (periodResponse.data?.length > 0) {
         setCurrentPeriod(periodResponse.data[0].currentPeriod);
-
-        //IMPORTANT :
-        // On affiche l'année de la période (ex: 2013),
-        // et NON l'année courante du système
         setEvaluationYear(periodResponse.data[0].evalAnnee?.toString() ?? '');
       }
     } catch (error) {
       console.error('Erreur lors de l\'initialisation des données:', error);
+      // Afficher seulement les erreurs critiques
+      if (error.response?.status >= 500) {
+        setErrorMessage('Erreur lors du chargement des données.');
+        setOpenSnackbar(true);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -457,164 +492,209 @@ useEffect(() => {
 
   const steps = template?.templateStrategicPriorities?.map((priority) => priority?.name || '') || [];
 
-  const validateUserObjectives = async () => {
-    try {
-      const priorities = template?.templateStrategicPriorities || [];
+const validateUserObjectives = async () => {
+  try {
+    const priorities = template?.templateStrategicPriorities || [];
+    
+    // Validation des pondérations
+    for (const priority of priorities) {
+      if (!priority) continue;
       
-      for (const priority of priorities) {
-        if (!priority) continue;
-        
-        const totalWeighting = calculateTotalWeighting(priority);
-        if (totalWeighting > 100) {
-          setErrorMessage(`La somme des pondérations pour "${priority.name}" ne peut pas dépasser 100%. Actuel: ${totalWeighting}%`);
-          setOpenSnackbar(true);
-          return;
-        }
-      }
-      
-      for (let i = 0; i < priorities.length; i++) {
-        const priority = priorities[i];
-        if (!priority) continue;
-        
-        const priorityTotal = calculateTotalWeighting(priority);
-        const required = getRequiredPercentage(priority);
-        if (priorityTotal <= required) {
-          setErrorMessage(`La pondération pour "${priority.name}" doit être supérieure à ${required}%. Actuel: ${priorityTotal.toFixed(1)}%`);
-          setOpenSnackbar(true);
-          return;
-        }
-      }
-      
-      const overallTotal = calculateOverallTotal();
-      if (overallTotal > 100) {
-        setErrorMessage(`Le total global des pondérations ne peut pas dépasser 100%. Actuel: ${overallTotal.toFixed(1)}%`);
+      const totalWeighting = calculateTotalWeighting(priority);
+      if (totalWeighting > 100) {
+        setErrorMessage(`La somme des pondérations pour "${priority.name}" ne peut pas dépasser 100%. Actuel: ${totalWeighting}%`);
         setOpenSnackbar(true);
         return;
       }
+    }
+    
+    for (let i = 0; i < priorities.length; i++) {
+      const priority = priorities[i];
+      if (!priority) continue;
+      
+      const priorityTotal = calculateTotalWeighting(priority);
+      const required = getRequiredPercentage(priority);
+      if (priorityTotal <= required) {
+        setErrorMessage(`La pondération pour "${priority.name}" doit être supérieure à ${required}%. Actuel: ${priorityTotal.toFixed(1)}%`);
+        setOpenSnackbar(true);
+        return;
+      }
+    }
+    
+    const overallTotal = calculateOverallTotal();
+    if (overallTotal > 100) {
+      setErrorMessage(`Le total global des pondérations ne peut pas dépasser 100%. Actuel: ${overallTotal.toFixed(1)}%`);
+      setOpenSnackbar(true);
+      return;
+    }
 
-      const objectivesData = priorities.flatMap((priority) => {
-        if (!priority || !priority.objectives) return [];
-        
-        return priority.objectives.map((objective) => ({
-          priorityId: priority.templatePriorityId,
-          priorityName: priority.name,
-          description: objective.description || '',
-          weighting: parseFloat(objective.weighting) || 0,
-          resultIndicator: objective.resultIndicator || '',
-          result: parseFloat(objective.result) || 0,
-          dynamicColumns:
-            objective.dynamicColumns?.map((col) => ({
-              columnName: col.columnName,
-              value: col.value
-            })) || []
-        }))
+    // PRÉPARATION DES DONNÉES SELON LE BACKEND
+    const objectivesData = priorities.flatMap((priority) => {
+      if (!priority || !priority.objectives) return [];
+      
+      return priority.objectives
+        .filter((objective) => objective.description && objective.weighting && objective.resultIndicator)
+        .map((objective) => {
+          const weighting = parseFloat(objective.weighting) || 0;
+          
+          if (isNaN(weighting) || weighting <= 0) {
+            return null;
+          }
+
+          // STRUCTURE EXACTE ATTENDUE PAR LE BACKEND (ObjectiveDto)
+          const baseData = {
+            priorityId: priority.templatePriorityId || 0,
+            priorityName: priority.name || '',
+            description: objective.description || '',
+            weighting: weighting,
+            resultIndicator: objective.resultIndicator || '',
+            result: parseFloat(objective.result) || 0,
+            dynamicColumns: [] // OBLIGATOIRE: tableau vide par défaut
+          };
+
+          // Transformer les dynamicColumns existants
+          if (Array.isArray(objective.dynamicColumns) && objective.dynamicColumns.length > 0) {
+            baseData.dynamicColumns = objective.dynamicColumns
+              .filter(col => col && col.columnName)
+              .map((col) => ({
+                columnName: col.columnName || '',
+                value: col.value || ''
+              }));
+          }
+
+          return baseData;
+        })
+        .filter(obj => obj !== null);
+    });
+
+    if (objectivesData.length === 0) {
+      setErrorMessage('Veuillez remplir au moins un objectif avec tous les champs requis.');
+      setOpenSnackbar(true);
+      return;
+    }
+
+    console.log('=== DONNÉES ENVOYÉES ===');
+    console.log(JSON.stringify(objectivesData, null, 2));
+
+    try {
+      const response = await formulaireInstance.post('/Evaluation/validateUserObjectives', objectivesData, {
+        params: {
+          userId: userId,
+          type: userType
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
-      if (!objectivesData.some((obj) => obj.description && obj.weighting && obj.resultIndicator)) {
-        setErrorMessage('Veuillez remplir au moins un objectif avec tous les champs requis.');
-        setOpenSnackbar(true);
-        return;
-      }
+      console.log('Réponse:', response.data);
 
-      try {
-        const response = await formulaireInstance.post('/Evaluation/validateUserObjectives', objectivesData, {
-          params: {
-            userId: userId,
-            type: userType
-          }
-        });
-
+      if (response.data && response.data.message) {
         alert(response.data.message || 'Objectifs validés avec succès !');
         window.location.reload();
-      } catch (error) {
-        if (error.response?.data?.message) {
-          setErrorMessage(error.response.data.message);
-          setOpenSnackbar(true);
-        } else {
-          setErrorMessage('Une erreur est survenue lors de la validation.');
-          setOpenSnackbar(true);
-        }
-        console.error('Erreur lors de la validation des objectifs :', error);
+      } else {
+        alert('Objectifs validés avec succès !');
+        window.location.reload();
       }
+
     } catch (error) {
-      console.error('Erreur lors de la validation des objectifs :', error);
-      setErrorMessage('Une erreur imprévue est survenue.');
+      console.error('Erreur API:', error.response?.data || error.message);
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        let errorMsg = 'Erreur lors de la validation.';
+        
+        if (typeof errorData === 'string') {
+          errorMsg = errorData;
+        } else if (errorData.message) {
+          errorMsg = errorData.message;
+        } else if (errorData.Message) {
+          errorMsg = errorData.Message;
+        } else if (errorData.errors) {
+          // Gestion des erreurs de validation .NET
+          const validationErrors = [];
+          for (const [field, messages] of Object.entries(errorData.errors)) {
+            if (Array.isArray(messages)) {
+              validationErrors.push(`${field}: ${messages.join(', ')}`);
+            } else {
+              validationErrors.push(`${field}: ${messages}`);
+            }
+          }
+          errorMsg = validationErrors.join('; ');
+        }
+        
+        setErrorMessage(errorMsg);
+      } else {
+        setErrorMessage('Une erreur est survenue lors de la validation.');
+      }
       setOpenSnackbar(true);
     }
-  };
+  } catch (error) {
+    console.error('Erreur lors de la validation des objectifs :', error);
+    setErrorMessage('Une erreur imprévue est survenue.');
+    setOpenSnackbar(true);
+  }
+};
 
-  const updateUserObjectives = async () => {
-    try {
-      const priorities = template?.templateStrategicPriorities || [];
+const updateUserObjectives = async () => {
+  try {
+    const priorities = template?.templateStrategicPriorities || [];
+    
+    // ... validation code (le même que dans validateUserObjectives) ...
+
+    const objectivesData = priorities.flatMap((priority) => {
+      if (!priority || !priority.objectives) return [];
       
-      for (const priority of priorities) {
-        if (!priority) continue;
-        
-        const totalWeighting = calculateTotalWeighting(priority);
-        if (totalWeighting > 100) {
-          setErrorMessage(`La somme des pondérations pour "${priority.name}" ne peut pas dépasser 100%. Actuel: ${totalWeighting}%`);
-          setOpenSnackbar(true);
-          return;
+      return priority.objectives.map((objective) => ({
+        objectiveId: objective.objectiveId, // Important: Inclure l'ID pour la mise à jour
+        description: objective.description || '',
+        weighting: parseFloat(objective.weighting) || 0,
+        resultIndicator: objective.resultIndicator || '',
+        result: parseFloat(objective.result) || 0,
+        // PAS de ManagerComment ici - ce n'est pas attendu par l'endpoint PUT
+        objectiveColumnValues: objective.dynamicColumns?.map((col) => ({
+          columnName: col.columnName,
+          value: col.value || ''
+        })) || []
+      }));
+    });
+
+    console.log('Update data:', JSON.stringify(objectivesData, null, 2));
+    
+    const response = await formulaireInstance.put('/Evaluation/userObjectif', objectivesData, {
+      params: {
+        evalId: evalId,  // Notez: "evalId" pas "EvalId"
+        userId: userId   // Notez: "userId" pas "UserId"
+      },
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    alert(response.data.Message || 'Objectifs mis à jour avec succès !');
+    window.location.reload();
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour des objectifs :', error);
+    
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      let errorMsg = errorData.Message || 'Une erreur est survenue lors de la mise à jour.';
+      
+      if (errorData.errors) {
+        const validationErrors = [];
+        for (const [field, messages] of Object.entries(errorData.errors)) {
+          validationErrors.push(`${field}: ${messages.join(', ')}`);
         }
+        errorMsg = validationErrors.join('; ');
       }
       
-      for (let i = 0; i < priorities.length; i++) {
-        const priority = priorities[i];
-        if (!priority) continue;
-        
-        const priorityTotal = calculateTotalWeighting(priority);
-        const required = getRequiredPercentage(priority);
-        if (priorityTotal <= required) {
-          setErrorMessage(`La pondération pour "${priority.name}" doit être supérieure à ${required}%. Actuel: ${priorityTotal.toFixed(1)}%`);
-          setOpenSnackbar(true);
-          return;
-        }
-      }
-      
-      const overallTotal = calculateOverallTotal();
-      if (overallTotal > 100) {
-        setErrorMessage(`Le total global des pondérations ne peut pas dépasser 100%. Actuel: ${overallTotal.toFixed(1)}%`);
-        setOpenSnackbar(true);
-        return;
-      }
-
-      const objectivesData = priorities.flatMap((priority) => {
-        if (!priority || !priority.objectives) return [];
-        
-        return priority.objectives.map((objective) => ({
-          objectiveId: objective.objectiveId,
-          description: objective.description || '',
-          weighting: parseFloat(objective.weighting) || 0,
-          resultIndicator: objective.resultIndicator || '',
-          result: parseFloat(objective.result) || 0,
-          templateStrategicPriority: {
-            templatePriorityId: priority.templatePriorityId,
-            name: priority.name,
-            maxObjectives: priority.maxObjectives || 0
-          },
-          objectiveColumnValues:
-            objective.dynamicColumns?.map((col) => ({
-              columnName: col.columnName,
-              value: col.value
-            })) || []
-        }))
-      });
-
-      const response = await formulaireInstance.put('/Evaluation/userObjectif', objectivesData, {
-        params: {
-          evalId,
-          userId
-        }
-      });
-
-      alert(response.data.Message || 'Objectifs mis à jour avec succès !');
-      window.location.reload();
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour des objectifs :', error);
-      setErrorMessage(error.response?.data?.Message || 'Une erreur est survenue lors de la mise à jour.');
-      setOpenSnackbar(true);
+      setErrorMessage(errorMsg);
+    } else {
+      setErrorMessage('Une erreur est survenue lors de la mise à jour.');
     }
-  };
+    setOpenSnackbar(true);
+  }
+};
 
   const handleNext = () => {
     if (validateStep()) {

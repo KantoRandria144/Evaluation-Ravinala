@@ -50,6 +50,11 @@ const Subordonne = () => {
   const [filterTypeUser, setFilterTypeUser] = useState('');
 
   const checkPermissionForSubordinateType = async (userId, subordinateType) => {
+     if (!subordinateType) {
+      console.warn(`Type de subordonné manquant ou null`);
+      return false; // Retourner false par défaut
+     }
+
     const requiredHabilitationId = SUBORDINATE_TYPE_TO_HABILITATION_ID[subordinateType];
 
     if (!requiredHabilitationId) {
@@ -131,10 +136,24 @@ const Subordonne = () => {
       const userId = user.id;
 
       try {
-        for (const subordinate of subordinates) {
+      // Filtrer les subordonnés qui ont un typeUser valide
+      const validSubordinates = subordinates.filter(subordinate => 
+        subordinate.typeUser && (subordinate.typeUser === 'Cadre' || subordinate.typeUser === 'NonCadre')
+      );
+
+        for (const subordinate of validSubordinates) {
           const hasPermission = await checkPermissionForSubordinateType(userId, subordinate.typeUser);
           permissionsMap[subordinate.id] = hasPermission;
         }
+
+
+        // Pour les subordonnés sans type, définir la permission à false
+        subordinates.filter(subordinate => !subordinate.typeUser || 
+          (subordinate.typeUser !== 'Cadre' && subordinate.typeUser !== 'NonCadre'))
+          .forEach(subordinate => {
+            permissionsMap[subordinate.id] = false;
+          });
+
 
         const canView = await checkPermission(userId, VIEW_ARCHIVE);
         setCanViewArchive(canView);

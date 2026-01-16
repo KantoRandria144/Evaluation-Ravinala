@@ -2947,6 +2947,8 @@ public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest
         {
             try
             {
+
+                
                 if (request == null)
                 {
                     return BadRequest(new { Message = "Les données de mise à jour sont requises." });
@@ -3412,6 +3414,14 @@ public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest
             public string Type { get; set; }
             public List<ObjectiveDto> Objectives { get; set; }
         }
+
+        public class ValidateUserObjectivesRequest
+        {
+            public string UserId { get; set; }
+            public string Type { get; set; }
+            public List<ObjectiveDto> Objectives { get; set; }
+        }
+
 
 
 
