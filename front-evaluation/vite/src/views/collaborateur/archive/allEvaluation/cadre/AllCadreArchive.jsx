@@ -455,6 +455,7 @@ function AllCadreArchive() {
                         INDICATEURS DE RÉSULTAT
                       </TableCell>
                       <TableCell sx={{ backgroundColor: '#e8eaf6', color: 'black' }}>RÉSULTATS en % d'atteinte sur 100%</TableCell>
+                      <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#c5cae9', color: 'black' }}>COMMENTAIRE MANAGER</TableCell>
                       {columnNames.map((columnName) => (
                         <TableCell key={columnName} sx={{ backgroundColor: '#c5cae9', color: 'black' }}>
                           {columnName}

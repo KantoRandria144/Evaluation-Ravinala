@@ -22,6 +22,7 @@ namespace EvaluationService.Models
         public decimal? CollaboratorResult { get; set; }
         public decimal? ManagerResult { get; set; }
         public string? ManagerComment { get; set; }
+        public string? CollaboratorComment { get; set; }
 
 
         // Foreign keys

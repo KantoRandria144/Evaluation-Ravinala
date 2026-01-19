@@ -211,6 +211,7 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                     resultIndicator: obj.resultIndicator || '',
                     collaboratorResult: obj.collaboratorResult ?? obj.result ?? 0,
                     managerResult: obj.managerResult ?? '',
+                    collaboratorComment: obj.collaboratorComment ?? '',
                     managerComment: obj.managerComment ?? '',
                     result: obj.result ?? obj.collaboratorResult ?? 0,
                     dynamicColumns:
@@ -1075,7 +1076,24 @@ function ManagerFi({ subordinateId, typeUser, showHeader = false }) {
                                         disabled
                                       />
                                     </Grid>
-                                    <Grid item xs={12}>
+                                    <Grid item xs={12} sm={6}>
+                                      <TextField
+                                        label="Commentaire du collaborateur"
+                                        fullWidth
+                                        multiline
+                                        minRows={3}
+                                        value={objective.collaboratorComment || ''}
+                                        variant="outlined"
+                                        InputProps={{
+                                          readOnly: true
+                                        }}
+                                        sx={{
+                                          backgroundColor: '#f5f5f5'
+                                        }}
+                                        placeholder="Aucun commentaire du collaborateur"
+                                      />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
                                       <TextField
                                         label="Commentaire du manager"
                                         fullWidth

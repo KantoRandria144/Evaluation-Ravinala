@@ -193,6 +193,7 @@ function ManagerFo() {
                     weighting: obj.weighting || '',
                     resultIndicator: obj.resultIndicator || '',
                     managerComment: obj.managerComment || '',
+                    collaboratorComment: obj.collaboratorComment || '',
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
                         columnName: col.columnName,
@@ -852,7 +853,25 @@ const calculateTotalWeighting = (priority) => {
                                       }
                                     />
                                   </Grid>
-                                  <Grid item xs={12}>
+                                  <Grid item xs={12} sm={6}>
+                                    <TextField 
+                                      label="Commentaire du collaborateur"
+                                      fullWidth
+                                      variant="outlined"
+                                      multiline
+                                      minRows={3}
+                                      value={objective.collaboratorComment || 'Aucun commentaire de la part du collaborateur'}
+                                      onChange={(e) =>
+                                        handleObjectiveChange(
+                                          template.templateStrategicPriorities[activeStep].name,
+                                          objIndex,
+                                          'collaboratorComment',
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </Grid>
+                                  <Grid item xs={12} sm={6}>
                                     <TextField
                                       label="Commentaire du manager"
                                       fullWidth

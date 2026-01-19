@@ -126,6 +126,7 @@ function CollabMp() {
                   resultIndicator: obj.resultIndicator || '',
                   result: obj.result || '',
                   managerComment: obj.managerComment ?? '',
+                  collaboratorComment: obj.collaboratorComment ?? '',
                   dynamicColumns:
                     obj.objectiveColumnValues?.map((col) => ({
                       columnName: col.columnName,
@@ -203,84 +204,83 @@ function CollabMp() {
   };
 
   const handleSaveResults = async () => {
-    try {
-      const requestData = {
-        userId: userId,
-        type: "Cadre",
-        updatedBy: "COLLABORATOR",
-        objectives: userObjectives.map(obj => {
+  try {
+    const requestData = {
+      userId: userId,
+      type: "Cadre",
+      updatedBy: "COLLABORATOR",
+
+      // ✅ SOURCE DE VÉRITÉ = TEMPLATE
+      objectives: template.templateStrategicPriorities.flatMap(priority =>
+        priority.objectives.map(obj => {
           const resultValue = editedResults[obj.objectiveId];
           let parsedResult = 0;
-          
-          if (resultValue !== '' && resultValue !== null && resultValue !== undefined) {
-            const normalizedValue = resultValue.toString().replace(',', '.');
-            parsedResult = parseFloat(normalizedValue) || 0;
+
+          if (
+            resultValue !== '' &&
+            resultValue !== null &&
+            resultValue !== undefined
+          ) {
+            parsedResult = parseFloat(
+              resultValue.toString().replace(',', '.')
+            ) || 0;
           }
-          
+
           return {
             objectiveId: obj.objectiveId,
             description: obj.description || '',
             weighting: parseFloat(obj.weighting) || 0,
             resultIndicator: obj.resultIndicator || '',
             result: parsedResult,
-            ColumnValues: obj.objectiveColumnValues?.map(col => ({
-              columnName: col.columnName,
-              value: col.value || ''
-            })) || [],
-            DynamicColumns: obj.objectiveColumnValues?.map(col => ({
+
+            // ✅ LE COMMENTAIRE MODIFIÉ EST BIEN ENVOYÉ
+            collaboratorComment: obj.collaboratorComment || '',
+
+            // ✅ COLONNES DYNAMIQUES
+            DynamicColumns: obj.dynamicColumns?.map(col => ({
               columnName: col.columnName,
               value: col.value || ''
             })) || []
           };
-        }),
-        indicators: []
-      };
+        })
+      ),
 
-      console.log('Envoi de la requête updateResults:', JSON.stringify(requestData, null, 2));
+      indicators: []
+    };
 
-      const response = await formulaireInstance.post('/Evaluation/updateResults', requestData);
+    console.log(
+      'PAYLOAD ENVOYÉ:',
+      JSON.stringify(requestData, null, 2)
+    );
 
-      if (response.status === 200) {
-        const message = response.data?.Message || 'Résultats mis à jour avec succès !';
-        alert(message);
-        
-        await refreshUserObjectives();
-        
-        setIsEditing(false);
-        setOpenConfirmModal(false);
-      } else {
-        alert('Réponse inattendue du serveur.');
-      }
-      
-    } catch (error) {
-      console.error('Erreur détaillée:', error);
-      
-      if (error.response) {
-        const { status, data } = error.response;
-        
-        if (status === 400) {
-          if (data.errors) {
-            const validationErrors = Object.entries(data.errors)
-              .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
-              .join('\n');
-            alert(`Erreurs de validation:\n${validationErrors}`);
-          } else {
-            alert(data.title || `Erreur ${status}: Requête invalide`);
-          }
-        } else if (status === 404) {
-          alert('Évaluation non trouvée. Vérifiez que l\'évaluation est en cours.');
-        } else if (status === 500) {
-          alert('Erreur serveur. Contactez l\'administrateur.');
-        } else {
-          alert(`Erreur ${status}: ${data?.message || 'Erreur inconnue'}`);
-        }
-      } else if (error.request) {
-        alert('Aucune réponse du serveur. Vérifiez votre connexion réseau.');
-      } else {
-        alert('Erreur de configuration de la requête.');
-      }
+    const response = await formulaireInstance.post(
+      '/Evaluation/updateResults',
+      requestData
+    );
+
+    if (response.status === 200) {
+      alert(response.data?.Message || 'Résultats mis à jour avec succès');
+
+      // 🔄 resynchronise backend → frontend
+      await refreshUserObjectives();
+
+      setIsEditing(false);
+      setOpenConfirmModal(false);
+    } else {
+      alert('Réponse inattendue du serveur.');
     }
-  };
+
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde:', error);
+
+    if (error.response?.data?.message) {
+      alert(error.response.data.message);
+    } else {
+      alert('Une erreur est survenue lors de la sauvegarde.');
+    }
+  }
+};
+
 
   const handleConfirmSave = () => {
     const invalidEntries = Object.entries(editedResults).filter(([id, value]) => {
@@ -653,6 +653,18 @@ function CollabMp() {
                               width: '25%'
                             }}
                           >
+                            Commentaire du collaborateur
+                          </TableCell>
+
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '25%'
+                            }}
+                          >
                             Commentaire du manager
                           </TableCell>
 
@@ -731,6 +743,38 @@ function CollabMp() {
                               >
                                 {renderResultCell(objective)}
                               </TableCell>
+
+                              <TableCell
+                                sx={{
+                                  borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                  py: 0.5,
+                                  width: '25%'
+                                }}
+                              >
+                                <TextField
+                                  fullWidth
+                                  multiline
+                                  minRows={2}
+                                  value={objective.collaboratorComment || ''}
+                                  variant="outlined"
+                                  placeholder="Votre commentaire"
+                                  onChange={(e) => {
+                                    const newValue = e.target.value;
+                                    setTemplate(prev => ({
+                                      ...prev,
+                                      templateStrategicPriorities: prev.templateStrategicPriorities.map(p => ({
+                                        ...p,
+                                        objectives: p.objectives.map(o =>
+                                          o.objectiveId === objective.objectiveId
+                                            ? { ...o, collaboratorComment: newValue }
+                                            : o
+                                        )
+                                      }))
+                                    }));
+                                  }}
+                                />
+                              </TableCell>
+
                               <TableCell
                                 sx={{
                                   borderRight: '1px solid rgba(224, 224, 224, 1)',

@@ -108,7 +108,11 @@ function CollabFi() {
           const initialEditedResults = {};
           objectives.forEach(obj => {
             if (obj.objectiveId) {
-              initialEditedResults[obj.objectiveId] = obj.result !== null && obj.result !== undefined ? obj.result.toString() : '';
+              initialEditedResults[obj.objectiveId] =
+                obj.collaboratorResult !== null && obj.collaboratorResult !== undefined
+                  ? obj.collaboratorResult.toString()
+                  : '';
+
             }
           });
           setEditedResults(initialEditedResults);
@@ -124,7 +128,10 @@ function CollabFi() {
                   description: obj.description || '',
                   weighting: obj.weighting || '',
                   resultIndicator: obj.resultIndicator || '',
-                  result: obj.result || '',
+                  result: (obj.collaboratorResult !== null && obj.collaboratorResult !== undefined)
+                    ? obj.collaboratorResult
+                    : '',
+                  collaboratorComment: obj.collaboratorComment ?? '',
                   managerComment: obj.managerComment ?? '',
                   dynamicColumns:
                     obj.objectiveColumnValues?.map((col) => ({
@@ -195,92 +202,84 @@ function CollabFi() {
     const originalResults = {};
     userObjectives.forEach(obj => {
       if (obj.objectiveId) {
-        originalResults[obj.objectiveId] = obj.result !== null && obj.result !== undefined ? obj.result.toString() : '';
+        originalResults[obj.objectiveId] =
+          obj.collaboratorResult !== null && obj.collaboratorResult !== undefined
+            ? obj.collaboratorResult.toString()
+            : '';
       }
     });
     setEditedResults(originalResults);
     setIsEditing(false);
   };
 
-  const handleSaveResults = async () => {
-    try {
-      const requestData = {
-        userId: userId,
-        type: "Cadre",
-        updatedBy: "COLLABORATOR",
-        objectives: userObjectives.map(obj => {
-          const resultValue = editedResults[obj.objectiveId];
-          let parsedResult = 0;
-          
-          if (resultValue !== '' && resultValue !== null && resultValue !== undefined) {
-            const normalizedValue = resultValue.toString().replace(',', '.');
-            parsedResult = parseFloat(normalizedValue) || 0;
-          }
-          
+const handleSaveResults = async () => {
+  try {
+    const requestData = {
+      evalId: evalId,
+      userId: userId,
+      type: "Cadre",
+      updatedBy: "COLLABORATOR",
+
+      objectives: template.templateStrategicPriorities.flatMap(priority =>
+        priority.objectives.map(obj => {
+          // 🔴 SOURCE DE VÉRITÉ ABSOLUE
+          const edited = editedResults[obj.objectiveId];
+
+          const finalResult =
+            edited !== undefined && edited !== null && edited !== ''
+              ? parseFloat(edited.toString().replace(',', '.')) || 0
+              : parseFloat(obj.result) || 0;
+
           return {
             objectiveId: obj.objectiveId,
             description: obj.description || '',
             weighting: parseFloat(obj.weighting) || 0,
             resultIndicator: obj.resultIndicator || '',
-            result: parsedResult,
-            ColumnValues: obj.objectiveColumnValues?.map(col => ({
-              columnName: col.columnName,
-              value: col.value || ''
-            })) || [],
-            DynamicColumns: obj.objectiveColumnValues?.map(col => ({
+
+            // ✅ RESULTAT FORCÉ
+            result: finalResult,
+
+            // ✅ COMMENTAIRE COLLABORATEUR
+            collaboratorComment: obj.collaboratorComment || '',
+
+            // ✅ COLONNES DYNAMIQUES
+            DynamicColumns: obj.dynamicColumns?.map(col => ({
               columnName: col.columnName,
               value: col.value || ''
             })) || []
           };
-        }),
-        indicators: []
-      };
+        })
+      ),
 
-      console.log('Envoi de la requête updateResults:', JSON.stringify(requestData, null, 2));
+      indicators: []
+    };
 
-      const response = await formulaireInstance.post('/Evaluation/updateResults', requestData);
+    console.log(
+      'PAYLOAD FINAL (DOIT CONTENIR 90):',
+      JSON.stringify(requestData, null, 2)
+    );
 
-      if (response.status === 200) {
-        const message = response.data?.Message || 'Résultats mis à jour avec succès !';
-        alert(message);
-        
-        await refreshUserObjectives();
-        
-        setIsEditing(false);
-        setOpenConfirmModal(false);
-      } else {
-        alert('Réponse inattendue du serveur.');
-      }
-      
-    } catch (error) {
-      console.error('Erreur détaillée:', error);
-      
-      if (error.response) {
-        const { status, data } = error.response;
-        
-        if (status === 400) {
-          if (data.errors) {
-            const validationErrors = Object.entries(data.errors)
-              .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
-              .join('\n');
-            alert(`Erreurs de validation:\n${validationErrors}`);
-          } else {
-            alert(data.title || `Erreur ${status}: Requête invalide`);
-          }
-        } else if (status === 404) {
-          alert('Évaluation non trouvée. Vérifiez que l\'évaluation est en cours.');
-        } else if (status === 500) {
-          alert('Erreur serveur. Contactez l\'administrateur.');
-        } else {
-          alert(`Erreur ${status}: ${data?.message || 'Erreur inconnue'}`);
-        }
-      } else if (error.request) {
-        alert('Aucune réponse du serveur. Vérifiez votre connexion réseau.');
-      } else {
-        alert('Erreur de configuration de la requête.');
-      }
+    const response = await formulaireInstance.post(
+      '/Evaluation/updateResults',
+      requestData
+    );
+
+    if (response.status === 200) {
+      alert(response.data?.Message || 'Résultats mis à jour avec succès');
+
+      // 🔄 RELIRE BACKEND
+      await refreshUserObjectives();
+
+      setIsEditing(false);
+      setOpenConfirmModal(false);
     }
-  };
+
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde:', error);
+    alert('Erreur lors de la sauvegarde des résultats');
+  }
+};
+
 
   const handleConfirmSave = () => {
     const invalidEntries = Object.entries(editedResults).filter(([id, value]) => {
@@ -661,6 +660,18 @@ function CollabFi() {
                               fontSize: '0.75rem',
                               py: 0.5,
                               borderRight: '1px solid rgba(224, 224, 224, 1)',
+                              width: '20%'
+                            }}
+                          >
+                            Commentaire Collaborateur
+                          </TableCell>
+
+                          <TableCell
+                            sx={{
+                              fontWeight: 'bold',
+                              fontSize: '0.75rem',
+                              py: 0.5,
+                              borderRight: '1px solid rgba(224, 224, 224, 1)',
                               width: '15%'
                             }}
                           >
@@ -741,6 +752,46 @@ function CollabFi() {
                               >
                                 {renderResultCell(objective)}
                               </TableCell>
+                              <TableCell
+                              sx={{
+                                borderRight: '1px solid rgba(224, 224, 224, 1)',
+                                py: 0.5,
+                                width: '20%'
+                              }}
+                            >
+                              <TextField
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                variant="outlined"
+                                placeholder="Votre commentaire final"
+                                value={objective.collaboratorComment || ''}
+                                onChange={(e) => {
+                                  if (!isEditing || isValidated) return;
+
+                                  const newValue = e.target.value;
+                                  setTemplate(prev => ({
+                                    ...prev,
+                                    templateStrategicPriorities: prev.templateStrategicPriorities.map(p => ({
+                                      ...p,
+                                      objectives: p.objectives.map(o =>
+                                        o.objectiveId === objective.objectiveId
+                                          ? { ...o, collaboratorComment: newValue }
+                                          : o
+                                      )
+                                    }))
+                                  }));
+                                }}
+                                InputProps={{
+                                  readOnly: !isEditing || isValidated
+                                }}
+                                sx={{
+                                  backgroundColor: (!isEditing || isValidated) ? '#f5f5f5' : 'white'
+                                }}
+                              />
+
+                            </TableCell>
+
                               <TableCell
                                 sx={{
                                   borderRight: '1px solid rgba(224, 224, 224, 1)',

@@ -302,6 +302,7 @@ namespace EvaluationService.Controllers
                     CollaboratorResult = obj.CollaboratorResult,
                     ManagerResult = obj.ManagerResult,
                     ManagerComment = obj.ManagerComment,
+                    CollaboratorComment = obj.CollaboratorComment,
                     Result = obj.ManagerResult ?? obj.CollaboratorResult ?? 0,
                     TemplateStrategicPriority = new TemplateStrategicPriorityDto
                     {
@@ -361,6 +362,7 @@ namespace EvaluationService.Controllers
                         existingObjective.ResultIndicator = updatedObjective.ResultIndicator;
                         existingObjective.Result = updatedObjective.Result;
                         existingObjective.ManagerComment = updatedObjective.ManagerComment;
+                        existingObjective.CollaboratorComment = updatedObjective.CollaboratorComment;
 
 
                         // Mettre à jour les ObjectiveColumnValues
@@ -462,6 +464,7 @@ namespace EvaluationService.Controllers
                     Weighting = objective.Weighting,
                     ResultIndicator = objective.ResultIndicator,
                     Result = objective.Result,
+                    CollaboratorComment = objective.CollaboratorComment,
                     CreatedBy = userId,
                     CreatedAt = DateTime.Now
                 };
@@ -861,6 +864,7 @@ namespace EvaluationService.Controllers
                     userObjective.ManagerResult = modifiedObjective.Result;
                     userObjective.Result = modifiedObjective.Result;
                     userObjective.ManagerComment = modifiedObjective.ManagerComment;
+                    userObjective.CollaboratorComment = modifiedObjective.CollaboratorComment;
 
 
                     _context.UserObjectives.Update(userObjective);
@@ -3047,18 +3051,25 @@ public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest
                         {
                             if (isManager)
                             {
+                                //Le manager évalue UNIQUEMENT
                                 existingObjective.ManagerResult = objectiveRequest.Result.Value;
-                                existingObjective.Result = objectiveRequest.Result.Value; // valeur officielle
+
+                                // ❗ NE PAS toucher à CollaboratorResult
+                                // ❗ NE PAS écraser l'auto-évaluation
                             }
                             else
                             {
+                                //Auto-évaluation du collaborateur
                                 existingObjective.CollaboratorResult = objectiveRequest.Result.Value;
-
-                                // optionnel : si manager pas encore saisi, Result suit l’auto-éval
-                                if (existingObjective.ManagerResult == null)
-                                    existingObjective.Result = objectiveRequest.Result.Value;
                             }
                         }
+
+                        //SAUVEGARDE DU COMMENTAIRE COLLABORATEUR
+                        if (!isManager && !string.IsNullOrWhiteSpace(objectiveRequest.CollaboratorComment))
+                        {
+                            existingObjective.CollaboratorComment = objectiveRequest.CollaboratorComment;
+                        }
+
 
                         if (isManager && !string.IsNullOrWhiteSpace(objectiveRequest.ManagerComment))
                         {
@@ -3269,6 +3280,7 @@ public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest
             public string ResultIndicator { get; set; }
             public decimal? Result { get; set; }
             public string? ManagerComment { get; set; }
+            public string? CollaboratorComment { get; set; }
             
             // Propriété principale
             public List<ColumnValueUpdateDto> DynamicColumns { get; set; }
@@ -3346,6 +3358,7 @@ public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest
             public string? ResultIndicator { get; set; }
             public decimal? Result { get; set; }
             public string? ManagerComment { get; set; }
+            public string? CollaboratorComment { get; set; }
             public List<ColumnValueDto>? ObjectiveColumnValues { get; set; }
         }
 

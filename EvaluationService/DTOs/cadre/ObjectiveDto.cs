@@ -14,8 +14,11 @@ namespace EvaluationService.DTOs
 
         // 🔥 OPTIONNEL (Manager uniquement)
         public string? ManagerComment { get; set; }
-
+        // 🔥 OPTIONNEL (Collaborator uniquement   )
+        public string? CollaboratorComment { get; set; }
+        public decimal? CollaboratorResult { get; set; }
         public decimal? ManagerResult { get; set; }
+
 
         public int ObjectiveId { get; set; }
 

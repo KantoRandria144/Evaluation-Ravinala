@@ -199,6 +199,7 @@ function CollabFo() {
                     description: obj.description || '',
                     weighting: obj.weighting || '',
                     resultIndicator: obj.resultIndicator || '',
+                    collaboratorComment: obj.collaboratorComment || '',
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
                         columnName: col.columnName,
@@ -548,6 +549,7 @@ const validateUserObjectives = async () => {
             description: objective.description || '',
             weighting: weighting,
             resultIndicator: objective.resultIndicator || '',
+            collaboratorComment: objective.collaboratorComment || '',
             result: parseFloat(objective.result) || 0,
             dynamicColumns: [] // OBLIGATOIRE: tableau vide par défaut
           };
@@ -647,10 +649,13 @@ const updateUserObjectives = async () => {
       
       return priority.objectives.map((objective) => ({
         objectiveId: objective.objectiveId, // Important: Inclure l'ID pour la mise à jour
+        priorityId: priority.templatePriorityId || 0, // IMPORTANT
+        priorityName: priority.name || '',
         description: objective.description || '',
         weighting: parseFloat(objective.weighting) || 0,
         resultIndicator: objective.resultIndicator || '',
         result: parseFloat(objective.result) || 0,
+        collaboratorComment: objective.collaboratorComment || '',
         // PAS de ManagerComment ici - ce n'est pas attendu par l'endpoint PUT
         objectiveColumnValues: objective.dynamicColumns?.map((col) => ({
           columnName: col.columnName,
@@ -999,6 +1004,27 @@ const updateUserObjectives = async () => {
                                           e.target.value
                                         )
                                       }
+                                    />
+                                  </Grid>
+
+                                  <Grid item xs={12}>
+                                    <TextField
+                                      label="Commentaire collaborateur (optionnel)"
+                                      fullWidth
+                                      variant="outlined"
+                                      multiline
+                                      minRows={2}
+                                      value={objective.collaboratorComment || ''}
+                                      onChange={(e) =>
+                                        handleObjectiveChange(
+                                          template.templateStrategicPriorities[activeStep]?.name || '',
+                                          objIndex,
+                                          'collaboratorComment',
+                                          e.target.value
+                                        )
+                                      }
+                                      placeholder="Ajoutez vos remarques, précisions ou contextes sur cet objectif..."
+                                      helperText="Ce commentaire sera visible par votre manager"
                                     />
                                   </Grid>
 

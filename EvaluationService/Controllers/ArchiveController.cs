@@ -163,6 +163,7 @@ namespace EvaluationService.Controllers
                         result.hcf.ResultIndicator,
                         Date = result.hcf.CreatedAt,
                         EvaluationYear = result.e.EvalAnnee,
+                        ManagerComment = result.hcf.ManagerComment,
                         Result = (string)null,
                         ColumnValues = _context.HistoryObjectiveColumnValuesFos
                             .Where(hcv => hcv.HcfId == result.hcf.HcfId)
@@ -203,6 +204,7 @@ namespace EvaluationService.Controllers
                         result.hcm.Weighting,
                         Date = result.hcm.UpdatedAt,
                         EvaluationYear = result.e.EvalAnnee,
+                        ManagerComment = result.hcm.ManagerComment,
                         result.hcm.ResultIndicator,
                         result.hcm.Result,
                         ColumnValues = _context.HistoryObjectiveColumnValuesMps
@@ -243,6 +245,7 @@ namespace EvaluationService.Controllers
                         result.hcf.Weighting,
                         Date = result.hcf.UpdatedAt, // Assurez-vous que c'est le bon champ pour la date
                         EvaluationYear = result.e.EvalAnnee,
+                        ManagerComment = result.hcf.ManagerComment,
                         result.hcf.ResultIndicator,
                         result.hcf.Result,
                         ColumnValues = _context.HistoryObjectiveColumnValuesFis

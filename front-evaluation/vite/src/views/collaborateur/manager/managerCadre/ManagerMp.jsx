@@ -194,6 +194,7 @@ function ManagerMp({ subordinateId, typeUser, showHeader = false }) {
                     resultIndicator: obj.resultIndicator || '',
                     collaboratorResult: obj.result ?? '',
                     managerResult: obj.managerResult ?? '',
+                    collaboratorComment: obj.collaboratorComment ?? '',
                     managerComment: obj.managerComment ?? '',
                     dynamicColumns:
                       obj.objectiveColumnValues?.map((col) => ({
@@ -1185,7 +1186,25 @@ const calculateAverageResult = (priority) => {
                                         disabled={isValidated}
                                       />
                                     </Grid>
-                                    <Grid item xs={12}>
+                                    <Grid item xs={12} sm={6}>
+                                    <TextField
+                                      label="Commentaire du collaborateur"
+                                      fullWidth
+                                      multiline
+                                      minRows={3}
+                                      value={objective.collaboratorComment || ''}
+                                      variant="outlined"
+                                      InputProps={{
+                                        readOnly: true
+                                      }}
+                                      sx={{
+                                        backgroundColor: '#f9f9f9'
+                                      }}
+                                      placeholder="Aucun commentaire du collaborateur"
+                                    />
+                                  </Grid>
+
+                                    <Grid item xs={12} sm={6}>
                                       <TextField
                                         label="Commentaire du manager"
                                         fullWidth

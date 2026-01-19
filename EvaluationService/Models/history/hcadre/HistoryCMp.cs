@@ -21,6 +21,7 @@ namespace EvaluationService.Models
         public decimal Weighting { get; set; }
 
         public string ResultIndicator { get; set; }
+        public string? ManagerComment { get; set; }
 
         [Required]
         public decimal Result { get; set; } = 0;
