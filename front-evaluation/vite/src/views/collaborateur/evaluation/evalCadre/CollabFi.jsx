@@ -672,7 +672,8 @@ const handleSaveResults = async () => {
                               fontSize: '0.75rem',
                               py: 0.5,
                               borderRight: '1px solid rgba(224, 224, 224, 1)',
-                              width: '15%'
+                              width: '25%',
+                              minWidth: '290px'
                             }}
                           >
                             Commentaire Manager
@@ -800,14 +801,12 @@ const handleSaveResults = async () => {
                                 }}
                               > 
                                 {objective.managerComment && (
-                                  <Alert severity="info" sx={{ mt: 1 }}>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                                      Commentaire du manager
-                                    </Typography>
+                                 
+                                    
                                     <Typography variant="body2">
                                       {objective.managerComment}
                                     </Typography>
-                                  </Alert>
+                               
                                 )}
                               </TableCell>
                               {objective.dynamicColumns?.map((column, colIndex) => (

@@ -240,7 +240,7 @@ const ResultSummary = () => {
 
     // Titre
     doc.setFontSize(18);
-    doc.text('Résultat des collaborateurs cadre', 14, 22);
+    doc.text('Résultat des collaborateurs C7-C13', 14, 22);
 
     // Sous-titre avec l'année sélectionnée
     doc.setFontSize(12);
@@ -323,7 +323,7 @@ const ResultSummary = () => {
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} sm={6}>
                 <Typography variant="h4" gutterBottom>
-                  Résultat des collaborateurs cadre
+                  Résultat des collaborateurs C7-C13
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6} container justifyContent="flex-end" alignItems="center">

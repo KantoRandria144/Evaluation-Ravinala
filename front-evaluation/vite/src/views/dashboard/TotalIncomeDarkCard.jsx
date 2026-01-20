@@ -104,7 +104,7 @@ const CadresCountDarkCard = ({ isLoading }) => {
                   }
                   secondary={
                     <Typography variant="subtitle2" sx={{ color: 'primary.light', mt: 0.25 }}>
-                      Cadre direct
+                      C7-C13 direct
                     </Typography>
                   }
                 />

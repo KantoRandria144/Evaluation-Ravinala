@@ -22,6 +22,7 @@ namespace EvaluationService.Models
 
         public string ResultIndicator { get; set; }
         public string? ManagerComment { get; set; }
+        public string? CollaboratorComment { get; set; }
 
         [Required]
         public decimal Result { get; set; } = 0;

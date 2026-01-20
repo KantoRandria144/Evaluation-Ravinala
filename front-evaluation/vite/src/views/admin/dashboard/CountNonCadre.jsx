@@ -104,7 +104,7 @@ const TotalIncomeLightCard = ({ isLoading, label }) => {
                   }
                   secondary={
                     <Typography variant="subtitle2" sx={{ color: 'grey.500', mt: 0.5 }}>
-                     Non Cadre 
+                     C1-C6
                     </Typography>
                   }
                 />

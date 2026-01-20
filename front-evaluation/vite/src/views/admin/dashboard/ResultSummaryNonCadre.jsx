@@ -241,7 +241,7 @@ const ResultSummaryNonCadre = () => {
 
     // Titre
     doc.setFontSize(18);
-    doc.text('Résultat des collaborateurs Non cadre', 14, 22);
+    doc.text('Résultat des collaborateurs C1-C6', 14, 22);
 
     // Sous-titre avec l'année sélectionnée
     doc.setFontSize(12);
@@ -322,7 +322,7 @@ const ResultSummaryNonCadre = () => {
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} sm={6}>
                 <Typography variant="h4" gutterBottom>
-                  Résultat des collaborateurs Non cadre
+                  Résultat des collaborateurs C1-C6
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6} container justifyContent="flex-end" alignItems="center">

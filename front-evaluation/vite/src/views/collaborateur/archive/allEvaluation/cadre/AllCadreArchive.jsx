@@ -455,7 +455,10 @@ function AllCadreArchive() {
                         INDICATEURS DE RÉSULTAT
                       </TableCell>
                       <TableCell sx={{ backgroundColor: '#e8eaf6', color: 'black' }}>RÉSULTATS en % d'atteinte sur 100%</TableCell>
-                      <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#c5cae9', color: 'black' }}>COMMENTAIRE MANAGER</TableCell>
+                      <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#e8eaf6', color: 'black' }}>
+                        COMMENTAIRE COLLABORATEUR
+                      </TableCell>
+                      <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#e8eaf6', color: 'black' }}>COMMENTAIRE MANAGER</TableCell>
                       {columnNames.map((columnName) => (
                         <TableCell key={columnName} sx={{ backgroundColor: '#c5cae9', color: 'black' }}>
                           {columnName}
@@ -487,6 +490,28 @@ function AllCadreArchive() {
                             </TableCell>
                             <TableCell sx={{ borderRight: '1px solid #ddd' }}>
                               {objective.result && objective.result !== 0 ? `${objective.result}%` : ' '}
+                            </TableCell>
+                            <TableCell sx={{ borderRight: '1px solid #ddd', maxWidth: 250 }}>
+                              {objective.collaboratorComment
+                                ? (
+                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                                      {objective.collaboratorComment}
+                                    </Typography>
+                                  )
+                                : ''}
+                            </TableCell>
+
+                            <TableCell sx={{ borderRight: '1px solid #ddd', maxWidth: 250 }}>
+                              {objective.managerComment
+                                ? (
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ whiteSpace: 'pre-wrap', color: 'primary.main', fontWeight: 'bold' }}
+                                    >
+                                      {objective.managerComment}
+                                    </Typography>
+                                  )
+                                : ''}
                             </TableCell>
                             {columnNames.map((columnName) => {
                               const columnValue = (objective.columnValues || []).find(col => col.columnName === columnName);

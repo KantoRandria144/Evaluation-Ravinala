@@ -458,6 +458,12 @@ function EvaluationPhasesCadre() {
                         INDICATEURS DE RÉSULTAT
                       </TableCell>
                       <TableCell sx={{ backgroundColor: '#e8eaf6', color: 'black' }}>RÉSULTATS en % d'atteinte sur 100%</TableCell>
+                      <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#e8eaf6', color: 'black' }}>
+                        COMMENTAIRE DU COLLABORATEUR
+                      </TableCell>
+                      <TableCell sx={{ borderRight: '1px solid #ddd', backgroundColor: '#e8eaf6', color: 'black' }}>
+                        COMMENTAIRE DU MANAGER
+                      </TableCell>
                       {columnNames.map((columnName) => (
                         <TableCell key={columnName} sx={{ backgroundColor: '#c5cae9', color: 'black' }}>
                           {columnName}
@@ -490,6 +496,18 @@ function EvaluationPhasesCadre() {
                             <TableCell sx={{ borderRight: '1px solid #ddd' }}>
                               {objective.result && objective.result !== 0 ? `${objective.result}%` : ' '}
                             </TableCell>
+                            <TableCell sx={{ borderRight: '1px solid #ddd', maxWidth: 250 }}>
+                              {objective.collaboratorComment
+                                ? objective.collaboratorComment
+                                : ''}
+                            </TableCell>
+
+                            <TableCell sx={{ borderRight: '1px solid #ddd', maxWidth: 250 }}>
+                              {objective.managerComment
+                                ? objective.managerComment
+                                : ''}
+                            </TableCell>
+
                             {columnNames.map((columnName) => {
                               const columnValue = (objective.columnValues || []).find(col => col.columnName === columnName);
                               return (

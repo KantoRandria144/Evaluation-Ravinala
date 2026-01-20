@@ -27,6 +27,7 @@ namespace EvaluationService.Models
         
         public string? ValidatedBy {get; set;}
         public string? ManagerComment { get; set; }
+        public string? CollaboratorComment { get; set; }
 
         [Required]
         public DateTime UpdatedAt { get; set; } = DateTime.Now;

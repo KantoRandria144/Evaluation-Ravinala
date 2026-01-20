@@ -77,7 +77,7 @@
                         Moyennes Annuelles des Contrats d'Objectifs
                     </Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                        Comparaison des scores moyens entre collaborateurs cadres et non cadres
+                        Comparaison des scores moyens entre collaborateurs C1-C6 et C7-C13
                     </Typography>
                 </Grid>
                 </Grid>
@@ -132,7 +132,7 @@
                         C
                         </Avatar>
                         <Box>
-                        <Typography variant="h6">Cadres</Typography>
+                        <Typography variant="h6">C7-C13</Typography>
                         </Box>
                     </Box>
                     </Grid>
@@ -142,7 +142,7 @@
                         NC
                         </Avatar>
                         <Box>
-                        <Typography variant="h6">Non Cadres</Typography>
+                        <Typography variant="h6">C1-C6</Typography>
                         </Box>
                     </Box>
                     </Grid>

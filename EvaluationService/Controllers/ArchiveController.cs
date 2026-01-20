@@ -155,22 +155,21 @@ namespace EvaluationService.Controllers
                     .Where(result => result.ue.UserId == userId && result.e.EvalId == evalId && result.e.Type == "Cadre")
                     .Select(result => new
                     {
-                        Phase = "Fixation",
-                        HistoryId = result.hcf.HcfId,
-                        result.hcf.PriorityName,
-                        result.hcf.Description,
-                        result.hcf.Weighting,
-                        result.hcf.ResultIndicator,
-                        Date = result.hcf.CreatedAt,
-                        EvaluationYear = result.e.EvalAnnee,
-                        ManagerComment = result.hcf.ManagerComment,
-                        Result = (string)null,
-                        ColumnValues = _context.HistoryObjectiveColumnValuesFos
+                        phase = "Fixation",
+                        historyId = result.hcf.HcfId,
+                        priorityName = result.hcf.PriorityName,
+                        description = result.hcf.Description,
+                        weighting = result.hcf.Weighting,
+                        resultIndicator = result.hcf.ResultIndicator,
+                        collaboratorComment = result.hcf.CollaboratorComment,
+                        managerComment = result.hcf.ManagerComment,
+                        result = (decimal?)null,
+                        columnValues = _context.HistoryObjectiveColumnValuesFos
                             .Where(hcv => hcv.HcfId == result.hcf.HcfId)
                             .Select(hcv => new
                             {
-                                hcv.ColumnName,
-                                hcv.Value
+                                columnName = hcv.ColumnName,
+                                value = hcv.Value
                             })
                             .ToList()
                     })
@@ -199,11 +198,12 @@ namespace EvaluationService.Controllers
                     {
                         Phase = "Mi-Parcours",
                         HistoryId = result.hcm.HcmId,
-                        result.hcm.PriorityName,
-                        result.hcm.Description,
-                        result.hcm.Weighting,
+                        priorityName = result.hcm.PriorityName,
+                        description = result.hcm.Description,
+                        weighting = result.hcm.Weighting,
                         Date = result.hcm.UpdatedAt,
                         EvaluationYear = result.e.EvalAnnee,
+                        CollaboratorComment = result.hcm.CollaboratorComment,
                         ManagerComment = result.hcm.ManagerComment,
                         result.hcm.ResultIndicator,
                         result.hcm.Result,
@@ -240,11 +240,12 @@ namespace EvaluationService.Controllers
                     {
                         Phase = "Évaluation Finale",
                         HistoryId = result.hcf.HcfiId,
-                        result.hcf.PriorityName,
-                        result.hcf.Description,
-                        result.hcf.Weighting,
+                        priorityName = result.hcf.PriorityName,
+                        description = result.hcf.Description,
+                        weighting = result.hcf.Weighting,
                         Date = result.hcf.UpdatedAt, // Assurez-vous que c'est le bon champ pour la date
                         EvaluationYear = result.e.EvalAnnee,
+                        CollaboratorComment = result.hcf.CollaboratorComment,
                         ManagerComment = result.hcf.ManagerComment,
                         result.hcf.ResultIndicator,
                         result.hcf.Result,

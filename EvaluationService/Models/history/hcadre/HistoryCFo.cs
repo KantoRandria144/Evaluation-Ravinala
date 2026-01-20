@@ -29,6 +29,7 @@ namespace EvaluationService.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public string? ManagerComment { get; set; }
+        public string? CollaboratorComment { get; set; }
 
         // Navigation property to UserEvaluations
         public virtual UserEvaluation UserEvaluation { get; set; }

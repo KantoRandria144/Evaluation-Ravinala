@@ -650,6 +650,8 @@ namespace EvaluationService.Controllers
                         Description = userObjective.Description,
                         Weighting = userObjective.Weighting,
                         ResultIndicator = userObjective.ResultIndicator,
+                        CollaboratorComment = userObjective.CollaboratorComment,
+                        ManagerComment = userObjective.ManagerComment,
                         CreatedAt = DateTime.Now,
                         ValidatedBy = validatorUserId
                     };
@@ -1117,6 +1119,8 @@ namespace EvaluationService.Controllers
                         Description = objective.Description,
                         Weighting = objective.Weighting,
                         ResultIndicator = objective.ResultIndicator,
+                        CollaboratorComment = userObjective.CollaboratorComment,
+                        ManagerComment = userObjective.ManagerComment,
                         Result = objective.Result,
                         UpdatedAt = DateTime.Now,
                         ValidatedBy = userId
@@ -1295,6 +1299,8 @@ public async Task<IActionResult> ValidateFinale([FromBody] ValidateFinaleRequest
                         Description = objective.Description,
                         Weighting = objective.Weighting,
                         ResultIndicator = objective.ResultIndicator,
+                        CollaboratorComment = objective.CollaboratorComment,
+                        ManagerComment = objective.ManagerComment,
                         Result = objective.Result,
                         ValidatedBy = request.UserId,
                         UpdatedAt = DateTime.Now

@@ -300,7 +300,7 @@ function Signature() {
     setLoadingAction(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/removebg', {
+      const response = await axios.post('http://10.0.104.199:5000/removebg', {
         base64Image: fileBase64.split(',')[1],
       }, {
         responseType: 'arraybuffer',
